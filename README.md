@@ -1,12 +1,12 @@
-# 6Img-to-3D
-
-### [Project Page](https://6img-to-3d.github.io/) | [Videos](https://www.youtube.com/@6Img-to-3D) | [Paper](https://arxiv.org/abs/2404.12378) | [Data](https://seed4d.github.io/)
-
-[6Img-to-3D: Few-Image Large-Scale Outdoor Driving Scene Reconstruction](https://6img-to-3d.github.io/6img-to-3D/)  
- [Theo Gieruc](https://github.com/tgieruc)\*<sup>1</sup><sup>2</sup>, [Marius Kaestingschaefer](https://marius.cx/)\*<sup>1</sup>, [Sebastian Bernhard](https://www.linkedin.com/in/dr-ing-sebastian-bernhard-79a763205/)<sup>1</sup>, [Mathieu Salzmann](https://people.epfl.ch/mathieu.salzmann)<sup>2</sup>,
+<div align="center">
  
- <sup>1</sup>Continental AG, <sup>2</sup>EPFL
-  \*denotes equal contribution  
+# 6Img-to-3D: Few-Image Large-Scale Outdoor Novel View Synthesis
+[![Paper](https://img.shields.io/badge/arXiv-2404.12378-brightgreen)](https://arxiv.org/abs/2404.12378)
+[![Conference](https://img.shields.io/badge/IEEE_IV-2025-blue)](https://ieee-iv.org/2025/)
+[![Project WebPage](https://img.shields.io/badge/Project-webpage-%23fc4d5d)](https://6img-to-3d.github.io/)
+[![YouTube](https://img.shields.io/badge/YouTube-video-red?logo=youtube&logoColor=white)](https://www.youtube.com/@6Img-to-3D)
+
+</div>
 
 A PyTorch implementation of the 6Img-to-3D model for large-scale outdoor driving scene reconstruction. The model takes as input six images from a driving scene and outputs a parameterized triplane from which novel views can be rendered.
 
