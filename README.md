@@ -133,14 +133,13 @@ This repository is licensed under the BSD-3-Clause license. See [LICENSE](./LICE
 If you find this code useful, please reference in your paper:
 
 ```
-@article{gieruc20246imgto3d,
-      title={6Img-to-3D: Few-Image Large-Scale Outdoor Driving Scene Reconstruction}, 
-      author={Théo Gieruc and Marius Kästingschäfer and Sebastian Bernhard and Mathieu Salzmann},
-      year={2024},
-      eprint={2404.12378},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      journal      = {arXiv preprint},
-      volume     = {arXiv:2404.12378},
-}
+@INPROCEEDINGS{11097387,
+  author={Gieruc, Théo and Kästingschäfers, Marius and Bernhard, Sebastian and Salzmann, Mathieu},
+  booktitle={2025 IEEE Intelligent Vehicles Symposium (IV)}, 
+  title={6Img-to-3D: Few-Image Large-Scale Outdoor Novel View Synthesis}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={2122-2129},
+  doi={10.1109/IV64158.2025.11097387}}
 ```
