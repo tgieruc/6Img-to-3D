@@ -42,7 +42,7 @@ class TPVImageCrossAttention(BaseModule):
 
     def __init__(self,
                  embed_dims=256,
-                 num_cams=6,
+                 max_cams=6,
                  pc_range=None,
                  dropout=0.1,
                  init_cfg=None,
@@ -64,7 +64,6 @@ class TPVImageCrossAttention(BaseModule):
         self.fp16_enabled = False
         self.deformable_attention = build_attention(deformable_attention)
         self.embed_dims = embed_dims
-        self.num_cams = num_cams
         self.output_proj = nn.Linear(embed_dims, embed_dims)
         self.batch_first = batch_first
         self.tpv_h, self.tpv_w, self.tpv_z = tpv_h, tpv_w, tpv_z
@@ -109,9 +108,15 @@ class TPVImageCrossAttention(BaseModule):
         if value is None:
             value = key
 
+        # Extract actual camera count from key tensor at runtime
+        # key shape: (num_cam, H*W, bs, embed_dims)
+        num_cams = key.shape[0]
+
         if residual is None:
             inp_residual = query
         bs, num_query, _ = query.size()
+
+        cam_mask = kwargs.get('cam_mask', None)
 
         queries = torch.split(query, [self.tpv_h*self.tpv_w, self.tpv_z*self.tpv_h, self.tpv_w*self.tpv_z], dim=1)
         if residual is None:
@@ -122,7 +127,11 @@ class TPVImageCrossAttention(BaseModule):
         reference_points_rebatches = []
         for tpv_idx, tpv_mask in enumerate(tpv_masks):
             indexes = []
-            for _, mask_per_img in enumerate(tpv_mask):
+            for cam_i, mask_per_img in enumerate(tpv_mask):
+                if cam_mask is not None and not cam_mask[cam_i]:
+                    # Padded camera: produce empty index
+                    indexes.append(torch.tensor([], dtype=torch.long, device=query.device))
+                    continue
                 index_query_per_img = mask_per_img[0].sum(-1).nonzero().squeeze(-1)
                 indexes.append(index_query_per_img)
             max_len = max([len(each) for each in indexes])
@@ -133,36 +142,36 @@ class TPVImageCrossAttention(BaseModule):
             D = reference_points_cam.size(3)
 
             queries_rebatch = queries[tpv_idx].new_zeros(
-                [bs * self.num_cams, max_len, self.embed_dims])
+                [bs * num_cams, max_len, self.embed_dims])
             reference_points_rebatch = reference_points_cam.new_zeros(
-                [bs * self.num_cams, max_len, D, 2])
+                [bs * num_cams, max_len, D, 2])
 
             for i, reference_points_per_img in enumerate(reference_points_cam):
                 for j in range(bs):
                     index_query_per_img = indexes[i]
-                    queries_rebatch[j * self.num_cams + i, :len(index_query_per_img)] = queries[tpv_idx][j, index_query_per_img]
-                    reference_points_rebatch[j * self.num_cams + i, :len(index_query_per_img)] = reference_points_per_img[j, index_query_per_img]
-            
+                    queries_rebatch[j * num_cams + i, :len(index_query_per_img)] = queries[tpv_idx][j, index_query_per_img]
+                    reference_points_rebatch[j * num_cams + i, :len(index_query_per_img)] = reference_points_per_img[j, index_query_per_img]
+
             queries_rebatches.append(queries_rebatch)
             reference_points_rebatches.append(reference_points_rebatch)
 
         num_cams, l, bs, embed_dims = key.shape
 
         key = key.permute(0, 2, 1, 3).view(
-            self.num_cams * bs, l, self.embed_dims)
+            num_cams * bs, l, self.embed_dims)
         value = value.permute(0, 2, 1, 3).view(
-            self.num_cams * bs, l, self.embed_dims)
+            num_cams * bs, l, self.embed_dims)
 
         queries = self.deformable_attention(
             query=queries_rebatches, key=key, value=value,
-            reference_points=reference_points_rebatches, 
+            reference_points=reference_points_rebatches,
             spatial_shapes=spatial_shapes,
             level_start_index=level_start_index,)
-        
+
         for tpv_idx, indexes in enumerate(indexeses):
             for i, index_query_per_img in enumerate(indexes):
                 for j in range(bs):
-                    slots[tpv_idx][j, index_query_per_img] += queries[tpv_idx][j * self.num_cams + i, :len(index_query_per_img)]
+                    slots[tpv_idx][j, index_query_per_img] += queries[tpv_idx][j * num_cams + i, :len(index_query_per_img)]
 
             count = tpv_masks[tpv_idx].sum(-1) > 0
             count = count.permute(1, 2, 0).sum(-1)
