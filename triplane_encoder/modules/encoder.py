@@ -138,7 +138,7 @@ class TPVFormerEncoder(TransformerLayerSequence):
         img_metas: List(dict("c2w", "K", "img_shape"))
         sampling: "log" or "linear"
         num_pts: number of points per ray
-        hn, hf: start and end of sampling 
+        hn, hf: start and end of sampling
         )
         """
         c2ws = []
@@ -150,61 +150,76 @@ class TPVFormerEncoder(TransformerLayerSequence):
             K.append(img_meta["K"])
             img_hwc.append(img_meta["img_shape"])
         c2ws = np.asarray(c2ws)
-        K = np.asarray(K) 
+        K = np.asarray(K)
         img_hwc = np.asarray(img_hwc)
-        w = int(img_hwc[0,0,1])
-        h = int(img_hwc[0,0,0])
-        fl_x = K[0,0,0,0]
-        fl_y = K[0,0,1,1]
-        c_x = K[0,0,0,2]
-        c_y = K[0,0,1,2]
-        c2ws = torch.from_numpy(c2ws).to(device).float()  # (B, N, 4, 4)
-        offset = c2ws.new_tensor(np.array(self.offset))
-        scale = c2ws.new_tensor(np.array(self.scale))
-        N =  c2ws.new_tensor(np.array([self.tpv_z, self.tpv_h, self.tpv_w]))
-        intrinsics = Intrinsics(w,h,fl_x,fl_y,c_x,c_y)
-        intrinsics.scale(self.intrin_factor)
-            
 
-        directions = ray_utils.get_ray_directions(intrinsics).cuda()
-        uvs = ((ray_utils.create_meshgrid(int(h*self.intrin_factor),int(w*self.intrin_factor), device='cuda') + 1) / 2) #(1,116,200,2) [0->1]
+        c2ws_batch = torch.from_numpy(c2ws).to(device).float()  # (B, N, 4, 4)
+        offset = c2ws_batch.new_tensor(np.array(self.offset))
+        scale = c2ws_batch.new_tensor(np.array(self.scale))
+        N = c2ws_batch.new_tensor(np.array([self.tpv_z, self.tpv_h, self.tpv_w]))
 
-        rays_os, rays_ds = [],[]
-        for c2w in c2ws[0]:
+        # Build per-camera rays using per-camera intrinsics
+        rays_os = []
+        rays_ds = []
+        uvs_per_cam = []
+        for cam_idx, c2w in enumerate(c2ws_batch[0]):
+            cam_K = K[0, cam_idx]  # Per-camera intrinsics: (3, 4) or (3, 3)
+            fl_x = cam_K[0, 0]
+            fl_y = cam_K[1, 1]
+            c_x = cam_K[0, 2]
+            c_y = cam_K[1, 2]
+            w_cam = int(img_hwc[0, cam_idx, 1])
+            h_cam = int(img_hwc[0, cam_idx, 0])
+
+            intrinsics = Intrinsics(w_cam, h_cam, fl_x, fl_y, c_x, c_y)
+            intrinsics.scale(self.intrin_factor)
+
+            directions = ray_utils.get_ray_directions(intrinsics).to(device)
+            uvs = ((ray_utils.create_meshgrid(int(h_cam * self.intrin_factor), int(w_cam * self.intrin_factor), device=device) + 1) / 2)  # (1, H', W', 2) [0->1]
+
             rays_o, rays_d = ray_utils.get_rays(directions, c2w[:3])
             rays_os.append(rays_o)
             rays_ds.append(rays_d)
+            uvs_per_cam.append(uvs)
 
-        rays_d = torch.stack(rays_ds, dim=0) #(6,23200,3)
-        rays_o = torch.stack(rays_os, dim=0) #(6,23200,3)
+        num_cams = len(rays_ds)
 
+        rays_d = torch.stack(rays_ds, dim=0)  # (num_cams, H*W, 3)
+        rays_o = torch.stack(rays_os, dim=0)  # (num_cams, H*W, 3)
 
         if sampling == "linear":
-            step =  torch.linspace(hn, hf, num_pts).to(rays_d.device)[None, ...] 
+            step = torch.linspace(hn, hf, num_pts).to(rays_d.device)[None, ...]
         elif sampling == "log":
-            step =  torch.logspace(np.log10(hn), np.log10(hf), num_pts).to(rays_d.device)[None, ...] 
-    
-        points = rays_o[:,:,None,:] + rays_d[:,:,None,:] * step[None,:,:,None]
+            step = torch.logspace(np.log10(hn), np.log10(hf), num_pts).to(rays_d.device)[None, ...]
+
+        points = rays_o[:, :, None, :] + rays_d[:, :, None, :] * step[None, :, :, None]
 
         if self.scene_contraction:
-            x_grid = contract_world(points * c2ws.new_tensor(self.scene_contraction_factor)) #samples, 3
-            bound_masks = (x_grid.abs() < 1.0).all(-1) # samples
+            x_grid = contract_world(points * c2ws_batch.new_tensor(self.scene_contraction_factor))  # samples, 3
+            bound_masks = (x_grid.abs() < 1.0).all(-1)  # samples
         else:
-            x_grid = (points - offset) / \
-                    (scale * N)
-            bound_masks = (x_grid.abs() < 1.0).all(-1) # samples
-            
+            x_grid = (points - offset) / (scale * N)
+            bound_masks = (x_grid.abs() < 1.0).all(-1)  # samples
 
-        indexes = ((x_grid /2 + 0.5 ) * N).round() # (6,23200,30,3)
-        indexes = torch.clamp(indexes, N*0, N-1).int()
-        grid = torch.zeros((self.tpv_z,self.tpv_h,self.tpv_w,6,2), device=points.device)
-        mask = torch.zeros((self.tpv_z,self.tpv_h,self.tpv_w,6,1),dtype=bool, device=points.device)
-        for i, (index, bound_mask) in enumerate(zip(indexes, bound_masks)):
-            index = index[bound_mask] # (valid_ids,3)
-            uv = uvs.unsqueeze(3).repeat(1,1,1,num_pts,1).view(-1,num_pts,2)[bound_mask] # (valid,2)
-            grid[index[:,0], index[:,1], index[:,2],i] = uv
-            mask[index[:,0], index[:,1], index[:,2],i] = True
-        return  grid, mask
+        indexes = ((x_grid / 2 + 0.5) * N).round()  # (num_cams, H*W, num_pts, 3)
+        indexes = torch.clamp(indexes, N * 0, N - 1).int()
+
+        grid = torch.zeros((self.tpv_z, self.tpv_h, self.tpv_w, num_cams, 2), device=points.device)
+        mask = torch.zeros((self.tpv_z, self.tpv_h, self.tpv_w, num_cams, 1), dtype=bool, device=points.device)
+
+        for i, (index, bound_mask, uvs) in enumerate(zip(indexes, bound_masks, uvs_per_cam)):
+            index = index[bound_mask]  # (valid_ids, 3)
+            uv = uvs.unsqueeze(3).repeat(1, 1, 1, num_pts, 1).view(-1, num_pts, 2)[bound_mask]  # (valid, 2)
+            grid[index[:, 0], index[:, 1], index[:, 2], i] = uv
+            mask[index[:, 0], index[:, 1], index[:, 2], i] = True
+
+        # Apply cam_mask from img_metas so padded cameras produce all-False masks
+        cam_mask = img_metas[0].get('cam_mask', np.ones(num_cams, dtype=bool))
+        for i in range(num_cams):
+            if not cam_mask[i]:
+                mask[:, :, :, i] = False
+
+        return grid, mask
     
 
     @staticmethod
@@ -249,16 +264,14 @@ class TPVFormerEncoder(TransformerLayerSequence):
         """
         output = tpv_query
         intermediate = []
-        bs = tpv_query[0].shape[0]        
+        bs = tpv_query[0].shape[0]
 
-        if self.grid is None:
-            self.grid, self.mask = self.get_grid(kwargs['img_metas'], sampling="log",  num_pts=2000, device="cuda", hn=0.1, hf=80)
+        # Always recompute — camera count varies per batch
+        self.grid, self.mask = self.get_grid(kwargs['img_metas'], sampling="log", num_pts=2000, device="cuda", hn=0.1, hf=80)
 
-        if self.ref_3d_hw_mask is None:
-            self.ref_3d_hw_uvs, self.ref_3d_hw_mask = self.point_sampling(self.grid.permute(3,1,2,0,4),self.mask.permute(3,1,2,0,4),4)  # [6, 1, 40000, 4, 2])
-            self.ref_3d_zh_uvs, self.ref_3d_zh_mask = self.point_sampling(self.grid.permute(3,0,1,2,4),self.mask.permute(3,0,1,2,4),32) # [6, 1, 3200,  4, 2])
-            self.ref_3d_wz_uvs, self.ref_3d_wz_mask = self.point_sampling(self.grid.permute(3,1,0,2,4),self.mask.permute(3,1,0,2,4),32) # [6, 1, 3200,  4, 2])
-            
+        self.ref_3d_hw_uvs, self.ref_3d_hw_mask = self.point_sampling(self.grid.permute(3, 1, 2, 0, 4), self.mask.permute(3, 1, 2, 0, 4), 4)   # [num_cams, 1, h*w, 4, 2]
+        self.ref_3d_zh_uvs, self.ref_3d_zh_mask = self.point_sampling(self.grid.permute(3, 0, 1, 2, 4), self.mask.permute(3, 0, 1, 2, 4), 32)  # [num_cams, 1, z*h, 32, 2]
+        self.ref_3d_wz_uvs, self.ref_3d_wz_mask = self.point_sampling(self.grid.permute(3, 1, 0, 2, 4), self.mask.permute(3, 1, 0, 2, 4), 32)  # [num_cams, 1, w*z, 32, 2]
 
         reference_points_cams = [self.ref_3d_hw_uvs, self.ref_3d_zh_uvs, self.ref_3d_wz_uvs]
         tpv_masks = [self.ref_3d_hw_mask, self.ref_3d_zh_mask, self.ref_3d_wz_mask]
