@@ -10,7 +10,8 @@ num_heads = 8
 _pos_dim_ = [48, 48, 32]
 _ffn_dim_ = _dim_*2
 _num_levels_ = 4
-_num_cams_ = 6
+_max_cams_ = 6
+_min_cams_train_ = 1
 
 N_h_ = 200
 N_w_ = 200
@@ -48,7 +49,7 @@ self_cross_layer = dict(
     attn_cfgs=[
         dict(
             type='TPVImageCrossAttention',
-            num_cams=_num_cams_,
+            max_cams=_max_cams_,
             deformable_attention=dict(
                 type='TPVMSDeformableAttention3D',
                 embed_dims=_dim_,
@@ -132,7 +133,7 @@ model = dict(
         tpv_w=N_w_,
         tpv_z=N_z_,
         num_feature_levels=_num_levels_,
-        num_cams=_num_cams_,
+        max_cams=_max_cams_,
         embed_dims=_dim_,
         encoder=dict(
             type='TPVFormerEncoder',
@@ -162,3 +163,10 @@ model = dict(
             w=N_w_,
             z=N_z_
         )))
+
+dataset_params = dict(
+    train_data_loader=dict(
+        min_cams_train=_min_cams_train_,
+        max_cams_train=_max_cams_,
+    )
+)
