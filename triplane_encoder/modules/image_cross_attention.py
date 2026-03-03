@@ -284,7 +284,6 @@ class TPVMSDeformableAttention3D(BaseModule):
             self.sampling_offsets[i].bias.data = grid_init.view(-1)
             constant_init(self.attention_weights[i], val=0., bias=0.)
         xavier_init(self.value_proj, distribution='uniform', bias=0.)
-        xavier_init(self.output_proj, distribution='uniform', bias=0.)
         self._is_init = True
 
     def get_sampling_offsets_and_attention(self, queries):

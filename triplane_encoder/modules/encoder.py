@@ -154,10 +154,10 @@ class TPVFormerEncoder(TransformerLayerSequence):
         img_hwc = np.asarray(img_hwc)
         w = int(img_hwc[0,0,1])
         h = int(img_hwc[0,0,0])
-        fl_x = K[0,0,0]
-        fl_y = K[0,0,0]
-        c_x = K[0,1,1]
-        c_y = K[0,1,2]
+        fl_x = K[0,0,0,0]
+        fl_y = K[0,0,1,1]
+        c_x = K[0,0,0,2]
+        c_y = K[0,0,1,2]
         c2ws = torch.from_numpy(c2ws).to(device).float()  # (B, N, 4, 4)
         offset = c2ws.new_tensor(np.array(self.offset))
         scale = c2ws.new_tensor(np.array(self.scale))

@@ -61,11 +61,11 @@ class PIF(torch.nn.Module):
         UVW = torch.einsum('ijk,lk->ilj', self.proj_mat, UVW_extended) # (N,C,3)
 
         # Transform to normalized coordinates
-        UVW[...,:2] /= UVW[...,2:]  # (N,C,3,1)
+        UVW = torch.cat([UVW[...,:2] / UVW[...,2:], UVW[...,2:]], dim=-1)
 
         # Remap UV coordinates to range [0, width]
-        UVW[..., 0] *= -1
-        UVW[..., 0] += self.height
+        UVW = UVW.clone()
+        UVW[..., 0] = -UVW[..., 0] + self.height
 
         # Determine valid pixel coordinates
         valid = ((UVW[..., 0] >= 0) & (UVW[..., 0] < self.height) &

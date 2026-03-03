@@ -70,7 +70,7 @@ def render_rays(nerf_model:TriplaneDecoder, ray_origins, ray_directions, config,
     samples_fine = pdf_sampler.generate_ray_samples(ray_bundle, samples_coarse, weights,  config.decoder["nb_bins"])
 
     midpoints = (samples_fine.starts + samples_fine.ends) / 2 #rays, #samples, 1
-    x = samples_coarse.origins + samples_coarse.directions.squeeze(2) * midpoints #rays, #samples, 3
+    x = samples_fine.origins + samples_fine.directions.squeeze(2) * midpoints #rays, #samples, 3
 
     colors, densities = nerf_model(x.reshape(-1, 3), ray_directions.reshape(-1, 3), pif=pif)
 

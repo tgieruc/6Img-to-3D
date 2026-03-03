@@ -154,8 +154,10 @@ def main(local_rank, args):
         
 
     if args.from_epoch > 0:
+        if not args.resume_from:
+            raise ValueError("--from-epoch requires --resume-from to load optimizer/scheduler state")
         optimizer.load_state_dict(ckpt["optimizer"])
-        scheduler.load_state_dict(ckpt["scheduler"])  
+        scheduler.load_state_dict(ckpt["scheduler"])
 
         scheduler.step(args.from_epoch * len(train_dataset_loader))
 
@@ -174,7 +176,7 @@ def main(local_rank, args):
         start = 0
 
     for epoch in range(start, num_steps // len(train_dataset_loader)):
-        train_dataset_loader.part_num = (epoch * num_imgs) % (80 // num_imgs)
+        train_dataset_loader.dataset.part_num = (epoch * num_imgs) % (80 // num_imgs)
         try:
             triplane_decoder.train()
             triplane_encoder.train()
@@ -199,8 +201,8 @@ def main(local_rank, args):
                 
             pbar = tqdm(enumerate(train_dataset_loader), total=total_scenes)
             for i_iter_val, (imgs, img_metas, batch) in pbar:
-                if (args.num_scenes > 0) and i_iter_val > total_scenes:
-                    continue
+                if (args.num_scenes > 0) and i_iter_val >= total_scenes:
+                    break
                 batch = torch.from_numpy(batch[0])
                 # batch = batch[0]
 
@@ -217,6 +219,7 @@ def main(local_rank, args):
 
                 if mask.sum() > 0:
                     batch = batch.cuda()
+                    mask = mask.cuda()
                     ray_origins = batch[:, :3]
                     ray_directions = batch[:, 3:6]
                     ground_truth_px_values = batch[:, 6:9]
@@ -250,11 +253,10 @@ def main(local_rank, args):
                         continue
 
                     optimizer.zero_grad()
+                    loss.backward()
                     if cfg.optimizer.clip_grad_norm > 0.:
                         torch.nn.utils.clip_grad_norm_(triplane_decoder.parameters(), cfg.optimizer.clip_grad_norm)
                         torch.nn.utils.clip_grad_norm_(triplane_encoder.parameters(), cfg.optimizer.clip_grad_norm)
-
-                    loss.backward()
                     optimizer.step()
                     scheduler.step(epoch * len(train_dataset_loader) + i_iter_val)
 

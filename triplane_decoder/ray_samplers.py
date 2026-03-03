@@ -81,7 +81,7 @@ class RaySamples:
         deltas = self.deltas[delta_mask]
 
         delta_density = torch.zeros_like(densities, device=densities.device, dtype=densities.dtype)
-        delta_density[delta_mask] = torch.tensor(deltas * densities[delta_mask], dtype=densities.dtype, device=densities.device)
+        delta_density[delta_mask] = (deltas * densities[delta_mask]).to(dtype=densities.dtype)
         alphas = 1 - torch.exp(-delta_density)
 
         transmittance = torch.cumsum(delta_density[..., :-1, :], dim=-2)

@@ -217,7 +217,7 @@ def main(local_rank, args):
                     
                     lpips_metric = torch.mean(lpips_loss_fct(img.view(1,H,W,3).permute(0,3,1,2) * 2 - 1, ground_truth_image.view(1,H,W,3).permute(0,3,1,2) * 2 - 1)).item()
                     psnr_metric = cv2.PSNR(img.cpu().numpy(),                   ground_truth_image.cpu().numpy(), R=1)
-                    ssim_metric = ssim(img.view(1,H,W,3), ground_truth_image.view(1,H,W,3), data_range=1, size_average=True).item()
+                    ssim_metric = ssim(img.view(1,H,W,3).permute(0,3,1,2), ground_truth_image.view(1,H,W,3).permute(0,3,1,2), data_range=1, size_average=True).item()
 
                     if args.gif:
                         gif.append(Image.fromarray((255*img).view(H,W,3).cpu().numpy().astype(np.uint8)))

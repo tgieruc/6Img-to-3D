@@ -84,7 +84,7 @@ class RaysDataset(Dataset):
             img = self.transform(img) # (4, h, w)
             img = img.view(img.size(0), -1).permute(1, 0) # (h*w, 4) RGBA
 
-            if img.size(0) == 4:
+            if img.size(1) == 4:
                 img = img[:, :3]*img[:, -1:] + (1-img[:, -1:]) # blend A to RGB
 
             if "depth_file_path" in frame and (self.config.decoder.whiteout or self.dataset_config.depth):

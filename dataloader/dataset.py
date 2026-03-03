@@ -131,7 +131,7 @@ class CarlaDataset(data.Dataset):
             path = None
        
         
-        return (input_rgb, img_meta, sphere_dataloader) if path is None else (imgs_dict["img"], img_meta, sphere_dataloader, path)
+        return (input_rgb, img_meta, sphere_dataloader) if path is None else (input_rgb, img_meta, sphere_dataloader, path)
     
 
 class PickledCarlaDataset(CarlaDataset):
