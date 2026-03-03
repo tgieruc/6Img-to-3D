@@ -152,6 +152,16 @@ class CarlaDataset(data.Dataset):
 
             img_shape = [img.shape for img in input_rgb]
 
+            # Camera dropout during training
+            if self.dataset_config["phase"] == "train":
+                min_cams = self.dataset_config.get("min_cams_train", 1)
+                max_cams = self.dataset_config.get("max_cams_train", num_cams)
+                selected = apply_camera_dropout(len(input_rgb), min_cams, max_cams)
+                input_rgb = [input_rgb[i] for i in selected]
+                all_c2w = [all_c2w[i] for i in selected]
+                K = K[selected]
+                img_shape = [img_shape[i] for i in selected]
+
             img_meta = dict(
                 K=K,
                 c2w=all_c2w,
@@ -224,6 +234,16 @@ class PickledCarlaDataset(CarlaDataset):
             input_rgb = self.transforms(input_rgb)
 
             img_shape = [img.shape for img in input_rgb]
+
+            # Camera dropout during training
+            if self.dataset_config["phase"] == "train":
+                min_cams = self.dataset_config.get("min_cams_train", 1)
+                max_cams = self.dataset_config.get("max_cams_train", num_cams)
+                selected = apply_camera_dropout(len(input_rgb), min_cams, max_cams)
+                input_rgb = [input_rgb[i] for i in selected]
+                all_c2w = [all_c2w[i] for i in selected]
+                K = K[selected]
+                img_shape = [img_shape[i] for i in selected]
 
             img_meta = dict(
                 K=K,
