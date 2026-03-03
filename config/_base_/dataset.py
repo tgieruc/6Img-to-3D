@@ -17,8 +17,10 @@ dataset_params = dict(
         factor = 0.08,
         whole_image = True,
         num_imgs = 3,
-        depth=True
-    ), 
+        depth=True,
+        min_cams_train=1,
+        max_cams_train=6,
+    ),
     val_data_loader = dict(
         pickled = False, # True is unsupported
         phase = "test", # "train", "test", "full"

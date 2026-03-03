@@ -163,10 +163,3 @@ model = dict(
             w=N_w_,
             z=N_z_
         )))
-
-dataset_params = dict(
-    train_data_loader=dict(
-        min_cams_train=_min_cams_train_,
-        max_cams_train=_max_cams_,
-    )
-)
