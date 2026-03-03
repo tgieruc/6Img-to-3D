@@ -8,6 +8,7 @@ https://github.com/wzzheng/TPVFormer/blob/a1cf223ae4b79f56a2b046016c35a8fb3a0b62
 """
 
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn.init import normal_
@@ -20,6 +21,7 @@ from mmcv.runner import force_fp32, auto_fp16
 
 from .modules.cross_view_hybrid_attention import TPVCrossViewHybridAttention
 from .modules.image_cross_attention import TPVMSDeformableAttention3D
+from triplane_encoder.modules.pose_embedding import PoseEmbedding
 
 
 @HEADS.register_module(force=True)
@@ -31,7 +33,7 @@ class TPVFormerHead(BaseModule):
                  tpv_w=30,
                  tpv_z=30,
                  num_feature_levels=4,
-                 num_cams=6,
+                 max_cams=6,
                  encoder=None,
                  embed_dims=256,
                  **kwargs):
@@ -42,7 +44,7 @@ class TPVFormerHead(BaseModule):
         self.tpv_z = tpv_z
         self.embed_dims = embed_dims
         self.num_feature_levels = num_feature_levels
-        self.num_cams = num_cams
+        self.max_cams = max_cams
         self.fp16_enabled = False
 
         # positional encoding
@@ -52,8 +54,7 @@ class TPVFormerHead(BaseModule):
         self.encoder = build_transformer_layer_sequence(encoder)
         self.level_embeds = nn.Parameter(
             torch.Tensor(self.num_feature_levels, self.embed_dims))
-        self.cams_embeds = nn.Parameter(
-            torch.Tensor(self.num_cams, self.embed_dims))
+        self.pose_embedding = PoseEmbedding(embed_dims=self.embed_dims)
         self.tpv_embedding_hw = nn.Embedding(self.tpv_h * self.tpv_w, self.embed_dims)
         self.tpv_embedding_zh = nn.Embedding(self.tpv_z * self.tpv_h, self.embed_dims)
         self.tpv_embedding_wz = nn.Embedding(self.tpv_w * self.tpv_z, self.embed_dims)
@@ -70,7 +71,6 @@ class TPVFormerHead(BaseModule):
                 except AttributeError:
                     m.init_weights()
         normal_(self.level_embeds)
-        normal_(self.cams_embeds)
 
     @auto_fp16(apply_to=('mlvl_feats'))
     def forward(self, mlvl_feats, img_metas):
@@ -98,13 +98,21 @@ class TPVFormerHead(BaseModule):
         tpv_pos = [tpv_pos_hw, tpv_pos_zh, tpv_pos_wz]
         
         # flatten image features of different scales
+        # pose_embeds shape: (B, N, embed_dims) from img_metas
+        pose_embeds = torch.from_numpy(
+            np.stack([m['pose_intrinsics'] for m in img_metas])
+        ).to(mlvl_feats[0].device).to(dtype)  # (B, N, 20)
+        pose_embeds = self.pose_embedding(pose_embeds)  # (B, N, embed_dims)
+
         feat_flatten = []
         spatial_shapes = []
         for lvl, feat in enumerate(mlvl_feats):
             bs, num_cam, c, h, w = feat.shape
             spatial_shape = (h, w)
             feat = feat.flatten(3).permute(1, 0, 3, 2) # num_cam, bs, hw, c
-            feat = feat + self.cams_embeds[:, None, None, :].to(dtype)
+            # feat shape: (num_cam, bs, h*w, c)
+            # pose_embeds needs shape: (num_cam, bs, 1, embed_dims)
+            feat = feat + pose_embeds.permute(1, 0, 2).unsqueeze(2).to(dtype)  # (N, B, 1, C)
             feat = feat + self.level_embeds[None, None, lvl:lvl+1, :].to(dtype)
             spatial_shapes.append(spatial_shape)
             feat_flatten.append(feat)
