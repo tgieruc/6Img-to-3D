@@ -359,20 +359,20 @@ def main(local_rank, args):
                             psnr_list.append(psnr)
                             lpips_list.append(lpips_metric)
 
-                        fig, ax = plt.subplots(2, 3, figsize=(10, 5))
-                        imgs = torch.clip(imgs[0].detach().cpu() / 255 + 0.5,0,1).permute(0,2,3,1)
-                        ax[0,0].imshow((imgs[2][:,:,[2,1,0]]))
-                        ax[0,0].axis('off')
-                        ax[0,1].imshow((imgs[0][:,:,[2,1,0]]))
-                        ax[0,1].axis('off')
-                        ax[0,2].imshow((imgs[1][:,:,[2,1,0]]))
-                        ax[0,2].axis('off')
-                        ax[1,0].imshow((imgs[4][:,:,[2,1,0]]))
-                        ax[1,0].axis('off')
-                        ax[1,1].imshow((imgs[3][:,:,[2,1,0]]))
-                        ax[1,1].axis('off')
-                        ax[1,2].imshow((imgs[5][:,:,[2,1,0]]))
-                        ax[1,2].axis('off')
+                        num_vis_cams = img_metas[0]["num_cams"]
+                        ncols = min(num_vis_cams, 3)
+                        nrows = (num_vis_cams + ncols - 1) // ncols
+                        fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 3.5, nrows * 3))
+                        if num_vis_cams == 1:
+                            axes = np.array([axes])
+                        axes = axes.flatten()
+                        imgs_norm = torch.clip(imgs[0].detach().cpu() / 255 + 0.5, 0, 1).permute(0, 2, 3, 1)
+                        for cam_i in range(num_vis_cams):
+                            axes[cam_i].imshow(imgs_norm[cam_i][:, :, [2, 1, 0]])
+                            axes[cam_i].axis('off')
+                            axes[cam_i].set_title(f'Cam {cam_i}')
+                        for ax_i in range(num_vis_cams, len(axes)):
+                            axes[ax_i].axis('off')
 
                         plt.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.99, wspace=0.01, hspace=0.01)
 
