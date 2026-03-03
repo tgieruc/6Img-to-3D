@@ -13,6 +13,45 @@ from dataloader.transform_3d import NormalizeMultiviewImage
 from torch.utils.data import DataLoader
 from dataloader.rays_dataset import RaysDataset
 
+def build_pose_intrinsics_vector(c2ws, K):
+    """Build (N, 20) array: flattened 4x4 pose + (fx, fy, cx, cy) per camera.
+
+    Args:
+        c2ws: list of N pose matrices (4x4 each, as nested lists or arrays)
+        K: (N, 3, 4) intrinsics array
+
+    Returns:
+        (N, 20) numpy array
+    """
+    n_cams = len(c2ws)
+    result = np.zeros((n_cams, 20))
+    for i, c2w in enumerate(c2ws):
+        result[i, :16] = np.array(c2w).flatten()
+        result[i, 16] = K[i, 0, 0]  # fx
+        result[i, 17] = K[i, 1, 1]  # fy
+        result[i, 18] = K[i, 0, 2]  # cx
+        result[i, 19] = K[i, 1, 2]  # cy
+    return result
+
+
+def apply_camera_dropout(n_cams, min_cams=1, max_cams=6):
+    """Randomly select a subset of cameras.
+
+    Args:
+        n_cams: total number of cameras available
+        min_cams: minimum cameras to keep
+        max_cams: maximum cameras to keep
+
+    Returns:
+        sorted list of selected camera indices
+    """
+    max_cams = min(max_cams, n_cams)
+    min_cams = min(min_cams, max_cams)
+    k = random.randint(min_cams, max_cams)
+    indices = sorted(random.sample(range(n_cams), k))
+    return indices
+
+
 img_norm_cfg = dict(
     mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False)
 
@@ -82,7 +121,7 @@ class CarlaDataset(data.Dataset):
         }
 
         img_meta = None
-        input_rgb=np.empty((6,3,100,100))
+        input_rgb = []
         sphere_dataloader = None
 
         if "input_images" in self.dataset_config.get("selection", ["input_images"]):
@@ -91,12 +130,18 @@ class CarlaDataset(data.Dataset):
 
             input_rgb = []
             all_c2w = []
-            K = np.zeros((3,4)) # (C,3,4)
-            K[0,0] = input_data['fl_x']
-            K[1,1] = input_data['fl_y']
-            K[2,2] = 1
-            K[0,2] = input_data['cx']
-            K[1,2] = input_data['cy']
+            num_cams = len(input_data["frames"])
+            K = np.zeros((num_cams, 3, 4))
+            for cam_idx, frame in enumerate(input_data["frames"]):
+                fx = frame.get("fl_x", input_data.get("fl_x", 0))
+                fy = frame.get("fl_y", input_data.get("fl_y", 0))
+                cx = frame.get("cx", input_data.get("cx", 0))
+                cy = frame.get("cy", input_data.get("cy", 0))
+                K[cam_idx, 0, 0] = fx
+                K[cam_idx, 1, 1] = fy
+                K[cam_idx, 2, 2] = 1
+                K[cam_idx, 0, 2] = cx
+                K[cam_idx, 1, 2] = cy
 
             for frame in input_data["frames"]:
                 input_rgb.append(imread(os.path.join(data["nuscenes"], "transforms", frame["file_path"]), "unchanged")[:,:,:3].astype(np.float32))
@@ -111,6 +156,8 @@ class CarlaDataset(data.Dataset):
                 K=K,
                 c2w=all_c2w,
                 img_shape=img_shape,
+                pose_intrinsics=build_pose_intrinsics_vector(all_c2w, K),
+                num_cams=len(all_c2w),
             )
 
 
@@ -156,12 +203,18 @@ class PickledCarlaDataset(CarlaDataset):
 
             input_rgb = []
             all_c2w = []
-            K = np.zeros((3,4)) # (C,3,4)
-            K[0,0] = input_data['fl_x']
-            K[1,1] = input_data['fl_y']
-            K[2,2] = 1
-            K[0,2] = input_data['cx']
-            K[1,2] = input_data['cy']
+            num_cams = len(input_data["frames"])
+            K = np.zeros((num_cams, 3, 4))
+            for cam_idx, frame in enumerate(input_data["frames"]):
+                fx = frame.get("fl_x", input_data.get("fl_x", 0))
+                fy = frame.get("fl_y", input_data.get("fl_y", 0))
+                cx = frame.get("cx", input_data.get("cx", 0))
+                cy = frame.get("cy", input_data.get("cy", 0))
+                K[cam_idx, 0, 0] = fx
+                K[cam_idx, 1, 1] = fy
+                K[cam_idx, 2, 2] = 1
+                K[cam_idx, 0, 2] = cx
+                K[cam_idx, 1, 2] = cy
 
             for frame in input_data["frames"]:
                 input_rgb.append(imread(os.path.join(data["nuscenes"], "transforms", frame["file_path"]), "unchanged")[:,:,:3].astype(np.float32))
@@ -176,8 +229,10 @@ class PickledCarlaDataset(CarlaDataset):
                 K=K,
                 c2w=all_c2w,
                 img_shape=img_shape,
+                pose_intrinsics=build_pose_intrinsics_vector(all_c2w, K),
+                num_cams=len(all_c2w),
             )
-            
+
 
         if "sphere_dataset" in self.dataset_config.get("selection", ["sphere_dataset"]):
             if self.dataset_config.get("whole_image", False):
