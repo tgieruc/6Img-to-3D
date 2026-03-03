@@ -267,7 +267,8 @@ class TPVFormerEncoder(TransformerLayerSequence):
         bs = tpv_query[0].shape[0]
 
         # Always recompute — camera count varies per batch
-        self.grid, self.mask = self.get_grid(kwargs['img_metas'], sampling="log", num_pts=2000, device="cuda", hn=0.1, hf=80)
+        device = value.device if value is not None else "cuda"
+        self.grid, self.mask = self.get_grid(kwargs['img_metas'], sampling="log", num_pts=2000, device=device, hn=0.1, hf=80)
 
         self.ref_3d_hw_uvs, self.ref_3d_hw_mask = self.point_sampling(self.grid.permute(3, 1, 2, 0, 4), self.mask.permute(3, 1, 2, 0, 4), 4)   # [num_cams, 1, h*w, 4, 2]
         self.ref_3d_zh_uvs, self.ref_3d_zh_mask = self.point_sampling(self.grid.permute(3, 0, 1, 2, 4), self.mask.permute(3, 0, 1, 2, 4), 32)  # [num_cams, 1, z*h, 32, 2]

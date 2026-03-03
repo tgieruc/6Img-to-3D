@@ -116,7 +116,8 @@ class TPVImageCrossAttention(BaseModule):
             inp_residual = query
         bs, num_query, _ = query.size()
 
-        cam_mask = kwargs.get('cam_mask', None)
+        img_metas = kwargs.get('img_metas', None)
+        cam_mask = img_metas[0].get('cam_mask', None) if img_metas is not None else None
 
         queries = torch.split(query, [self.tpv_h*self.tpv_w, self.tpv_z*self.tpv_h, self.tpv_w*self.tpv_z], dim=1)
         if residual is None:
@@ -134,7 +135,7 @@ class TPVImageCrossAttention(BaseModule):
                     continue
                 index_query_per_img = mask_per_img[0].sum(-1).nonzero().squeeze(-1)
                 indexes.append(index_query_per_img)
-            max_len = max([len(each) for each in indexes])
+            max_len = max((len(each) for each in indexes), default=0)
             max_lens.append(max_len)
             indexeses.append(indexes)
 
