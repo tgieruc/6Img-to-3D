@@ -7,25 +7,22 @@ Tests:
   3. (Optional, requires mmcv/mmdet) Full model forward pass with < max_cams cameras.
 """
 
-import sys
-import types
-
 import numpy as np
-import torch
 import pytest
-
+import torch
 
 # ---------------------------------------------------------------------------
 # Test 1: Config contains max_cams, not num_cams
 # ---------------------------------------------------------------------------
 
+
 def test_config_has_max_cams():
     """Config must expose max_cams (not the old num_cams) after Task 1."""
     # Import only config.py — no heavy mmcv/mmdet needed
-    import importlib.util, os
-    cfg_path = os.path.join(
-        os.path.dirname(__file__), os.pardir, "config", "config.py"
-    )
+    import importlib.util
+    import os
+
+    cfg_path = os.path.join(os.path.dirname(__file__), os.pardir, "config", "config.py")
     spec = importlib.util.spec_from_file_location("config.config", os.path.abspath(cfg_path))
     cfg_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cfg_mod)
@@ -35,20 +32,17 @@ def test_config_has_max_cams():
 
     # Verify max_cams appears in the config representation
     cfg_str = str(model_cfg)
-    assert "max_cams" in cfg_str, (
-        f"'max_cams' must appear in model config; got:\n{cfg_str}"
-    )
+    assert "max_cams" in cfg_str, f"'max_cams' must appear in model config; got:\n{cfg_str}"
 
     # Verify the tpv_head section explicitly carries max_cams
     tpv_head = model_cfg.get("tpv_head", {})
-    assert "max_cams" in tpv_head, (
-        "'max_cams' must be present in tpv_head config dict"
-    )
+    assert "max_cams" in tpv_head, "'max_cams' must be present in tpv_head config dict"
 
 
 # ---------------------------------------------------------------------------
 # Test 2: collate -> dataset pipeline produces valid cam_mask
 # ---------------------------------------------------------------------------
+
 
 def test_collate_cam_mask_pipeline():
     """
@@ -161,6 +155,7 @@ def test_collate_cam_mask_single_camera():
 # Test 3: Full model forward pass (skipped when mmcv/mmdet not installed)
 # ---------------------------------------------------------------------------
 
+
 def test_forward_pass_variable_cameras():
     """Verify the full encoder accepts variable camera counts without crashing.
 
@@ -171,24 +166,20 @@ def test_forward_pass_variable_cameras():
 
     # These imports require mmcv/mmdet to be fully installed with CUDA ops.
     try:
-        import mmcv
-        from mmcv.utils import build_from_cfg
-        from mmdet.models import build_backbone
-        import triplane_encoder  # registers custom mmcv modules
+        pass  # registers custom mmcv modules
     except Exception as exc:
         pytest.skip(f"mmcv/mmdet/triplane_encoder import failed: {exc}")
 
     try:
-        from mmcv import Config
         from builder.model_builder import build_model
     except Exception as exc:
         pytest.skip(f"model builder import failed: {exc}")
 
     # Load config — this must succeed without any errors
-    import importlib.util, os
-    cfg_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), os.pardir, "config", "config.py")
-    )
+    import importlib.util
+    import os
+
+    cfg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "config", "config.py"))
     spec = importlib.util.spec_from_file_location("config.config", cfg_path)
     cfg_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cfg_mod)
@@ -226,34 +217,32 @@ def test_forward_pass_variable_cameras():
 
     cam_mask = np.ones(n_cams, dtype=bool)
 
-    img_metas = [{
-        "cam_mask": cam_mask,
-        "pose_intrinsics": pose_intrinsics,
-        "K": K,
-        "c2w": c2ws,
-        "img_shape": [(H, W, 3)] * n_cams,
-        "num_cams": n_cams,
-    }]
+    img_metas = [
+        {
+            "cam_mask": cam_mask,
+            "pose_intrinsics": pose_intrinsics,
+            "K": K,
+            "c2w": c2ws,
+            "img_shape": [(H, W, 3)] * n_cams,
+            "num_cams": n_cams,
+        }
+    ]
 
     with torch.no_grad():
         try:
             output = model(img_metas=img_metas, img=imgs)
         except Exception as exc:
-            pytest.fail(
-                f"Forward pass with {n_cams} cameras raised an exception: {exc}"
-            )
+            pytest.fail(f"Forward pass with {n_cams} cameras raised an exception: {exc}")
 
     # Output is a list/tuple of triplane features; verify they're non-empty tensors
-    if isinstance(output, (list, tuple)):
+    if isinstance(output, list | tuple):
         triplane = output[0]
-        if isinstance(triplane, (list, tuple)):
+        if isinstance(triplane, list | tuple):
             triplane = triplane[0]
     else:
         triplane = output
 
-    assert isinstance(triplane, torch.Tensor), (
-        f"Expected tensor output, got {type(triplane)}"
-    )
+    assert isinstance(triplane, torch.Tensor), f"Expected tensor output, got {type(triplane)}"
     # Shape should be (B, tpv_h*tpv_w, embed_dims) — just check it's 3-D and non-empty
     assert triplane.dim() == 3, f"Expected 3-D triplane, got shape {triplane.shape}"
     assert triplane.shape[0] == B, "Batch dimension mismatch"

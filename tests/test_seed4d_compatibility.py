@@ -1,23 +1,24 @@
 """Verify 6Img-to-3D correctly loads seed4d data with variable camera counts."""
-import json
-import numpy as np
-import os
-import tempfile
+
 import sys
 import types
-import pytest
+
+import numpy as np
 
 # Mock heavy dependencies before importing dataset modules
 for mod_name in [
-    "mmcv", "mmcv.image", "mmcv.image.io",
-    "dataloader.transform_3d", "dataloader.rays_dataset",
+    "mmcv",
+    "mmcv.image",
+    "mmcv.image.io",
+    "dataloader.transform_3d",
+    "dataloader.rays_dataset",
 ]:
     if mod_name not in sys.modules:
         mock_mod = types.ModuleType(mod_name)
         if mod_name == "mmcv.image.io":
             mock_mod.imread = lambda *a, **kw: None
         if mod_name == "dataloader.transform_3d":
-            mock_mod.NormalizeMultiviewImage = lambda **kw: (lambda x: x)
+            mock_mod.NormalizeMultiviewImage = lambda **kw: lambda x: x
         if mod_name == "dataloader.rays_dataset":
             mock_mod.RaysDataset = type("RaysDataset", (), {})
         sys.modules[mod_name] = mock_mod
@@ -27,7 +28,10 @@ def _make_transforms_ego(num_cams, per_camera_intrinsics=False):
     """Create a synthetic transforms_ego.json matching seed4d output format."""
     data = {
         "camera_model": "OPENCV",
-        "k1": 0, "k2": 0, "p1": 0, "p2": 0,
+        "k1": 0,
+        "k2": 0,
+        "p1": 0,
+        "p2": 0,
         "frames": [],
     }
 

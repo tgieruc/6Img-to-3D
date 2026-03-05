@@ -1,9 +1,7 @@
 import importlib.util
 import os
-import sys
 
 import torch
-import pytest
 
 # Load PoseEmbedding directly from its file to avoid pulling in the
 # heavy triplane_encoder package init (which requires mmcv, mmdet, etc.).

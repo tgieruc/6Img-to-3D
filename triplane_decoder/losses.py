@@ -62,21 +62,20 @@ def lossfun_distortion(t, w):
 def distortion_loss(weights_list, ray_samples_list):
     """From mipnerf360"""
     # takes samples and weights as proposed by the 'nerf' network
-    c = ray_samples_to_sdist(ray_samples_list) #rays, #(samples+1)
-    w = weights_list[..., 0] #rays, #samples, 1
+    c = ray_samples_to_sdist(ray_samples_list)  # rays, #(samples+1)
+    w = weights_list[..., 0]  # rays, #samples, 1
     loss = torch.mean(lossfun_distortion(c, w))
     return loss
 
 
 def compute_plane_tv(t):
     h, w, c = t.shape
-    count_h =  c * (h - 1) * w
-    count_w =  c * h * (w - 1)
-    h_tv = torch.square(t[1:, :] - t[:h-1, :]).sum()
-    w_tv = torch.square(t[:, 1:] - t[:, :w-1]).sum()
+    count_h = c * (h - 1) * w
+    count_w = c * h * (w - 1)
+    h_tv = torch.square(t[1:, :] - t[: h - 1, :]).sum()
+    w_tv = torch.square(t[:, 1:] - t[:, : w - 1]).sum()
     return 2 * (h_tv / count_h + w_tv / count_w)  # This is summing over batch and c instead of avg
+
 
 def compute_tv_loss(model):
     return compute_plane_tv(model.xy_plane) + compute_plane_tv(model.xz_plane) + compute_plane_tv(model.yz_plane)
-
-

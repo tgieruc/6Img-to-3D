@@ -3,12 +3,13 @@
 # @author: Théo Gieruc and Marius Kästingschäfer
 # ==============================================================================
 
-import numpy as np
 import mmcv
-from mmseg.datasets.builder import PIPELINES
+import numpy as np
+from mmengine.registry import TRANSFORMS as PIPELINES
+
 
 @PIPELINES.register_module()
-class NormalizeMultiviewImage(object):
+class NormalizeMultiviewImage:
     """Normalize the image.
     Added key is "img_norm_cfg".
     Args:
@@ -23,7 +24,6 @@ class NormalizeMultiviewImage(object):
         self.std = np.array(std, dtype=np.float32)
         self.to_rgb = to_rgb
 
-
     def __call__(self, input_imgs):
         """Call function to normalize images.
         Args:
@@ -34,9 +34,7 @@ class NormalizeMultiviewImage(object):
 
         return [mmcv.imnormalize(img, self.mean, self.std, self.to_rgb) for img in input_imgs]
 
-
     def __repr__(self):
         repr_str = self.__class__.__name__
-        repr_str += f'(mean={self.mean}, std={self.std}, to_rgb={self.to_rgb})'
+        repr_str += f"(mean={self.mean}, std={self.std}, to_rgb={self.to_rgb})"
         return repr_str
-

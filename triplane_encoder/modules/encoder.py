@@ -7,26 +7,21 @@ Please find the Apache 2 license conditions here:
 https://github.com/wzzheng/TPVFormer/blob/a1cf223ae4b79f56a2b046016c35a8fb3a0b6284/LICENSE
 """
 
-
-
-from mmcv.cnn.bricks.registry import TRANSFORMER_LAYER_SEQUENCE
-from mmcv.cnn.bricks.transformer import TransformerLayerSequence
-from mmcv.runner import force_fp32, auto_fp16
 import numpy as np
 import torch
-from mmcv.utils import TORCH_VERSION, digit_version
+from mmcv.cnn.bricks.transformer import TransformerLayerSequence
 from mmcv.utils import ext_loader
-from triplane_decoder.scene_contraction import contract_world
-from triplane_decoder.intrinsics import Intrinsics
-import triplane_decoder.ray_utils as ray_utils
+from mmengine.registry import MODELS as TRANSFORMER_LAYER_SEQUENCE
 
-ext_module = ext_loader.load_ext(
-    '_ext', ['ms_deform_attn_backward', 'ms_deform_attn_forward'])
+import triplane_decoder.ray_utils as ray_utils
+from triplane_decoder.intrinsics import Intrinsics
+from triplane_decoder.scene_contraction import contract_world
+
+ext_module = ext_loader.load_ext("_ext", ["ms_deform_attn_backward", "ms_deform_attn_forward"])
 
 
 @TRANSFORMER_LAYER_SEQUENCE.register_module(force=True)
 class TPVFormerEncoder(TransformerLayerSequence):
-
     """
     Attention with both self and cross attention.
     Args:
@@ -34,21 +29,35 @@ class TPVFormerEncoder(TransformerLayerSequence):
         coder_norm_cfg (dict): Config of last normalization layer. Default: `LN`.
     """
 
-    def __init__(self, *args, tpv_h, tpv_w, tpv_z, 
-                 num_points_in_pillar=[4, 32, 32], 
-                 num_points_in_pillar_cross_view=[32, 32, 32],
-                 return_intermediate=False, scene_contraction=False, scene_contraction_factor=None, scale=1, offset=0, intrin_factor=0.125, **kwargs):
-
+    def __init__(
+        self,
+        *args,
+        tpv_h,
+        tpv_w,
+        tpv_z,
+        num_points_in_pillar=[4, 32, 32],
+        num_points_in_pillar_cross_view=[32, 32, 32],
+        return_intermediate=False,
+        scene_contraction=False,
+        scene_contraction_factor=None,
+        scale=1,
+        offset=0,
+        intrin_factor=0.125,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.return_intermediate = return_intermediate
 
         self.tpv_h, self.tpv_w, self.tpv_z = tpv_h, tpv_w, tpv_z
         self.num_points_in_pillar = num_points_in_pillar
-        assert num_points_in_pillar[1] == num_points_in_pillar[2] and num_points_in_pillar[1] % num_points_in_pillar[0] == 0
+        assert (
+            num_points_in_pillar[1] == num_points_in_pillar[2]
+            and num_points_in_pillar[1] % num_points_in_pillar[0] == 0
+        )
         self.fp16_enabled = False
 
         cross_view_ref_points = self.get_cross_view_ref_points(tpv_h, tpv_w, tpv_z, num_points_in_pillar_cross_view)
-        self.register_buffer('cross_view_ref_points', cross_view_ref_points)
+        self.register_buffer("cross_view_ref_points", cross_view_ref_points)
         self.num_points_cross_view = num_points_in_pillar_cross_view
 
         self.scene_contraction = scene_contraction
@@ -62,78 +71,81 @@ class TPVFormerEncoder(TransformerLayerSequence):
         self.ref_3d_zh_uvs = self.ref_3d_zh_mask = None
         self.ref_3d_wz_uvs = self.ref_3d_wz_mask = None
 
-
     @staticmethod
     def get_cross_view_ref_points(tpv_h, tpv_w, tpv_z, num_points_in_pillar):
         # ref points generating target: (#query)hw+zh+wz, (#level)3, #p, 2
         # generate points for hw and level 1
-        h_ranges = torch.linspace(0.5, tpv_h-0.5, tpv_h) / tpv_h
-        w_ranges = torch.linspace(0.5, tpv_w-0.5, tpv_w) / tpv_w
+        h_ranges = torch.linspace(0.5, tpv_h - 0.5, tpv_h) / tpv_h
+        w_ranges = torch.linspace(0.5, tpv_w - 0.5, tpv_w) / tpv_w
         h_ranges = h_ranges.unsqueeze(-1).expand(-1, tpv_w).flatten()
         w_ranges = w_ranges.unsqueeze(0).expand(tpv_h, -1).flatten()
-        hw_hw = torch.stack([w_ranges, h_ranges], dim=-1) # hw, 2
-        hw_hw = hw_hw.unsqueeze(1).expand(-1, num_points_in_pillar[2], -1) # hw, #p, 2
+        hw_hw = torch.stack([w_ranges, h_ranges], dim=-1)  # hw, 2
+        hw_hw = hw_hw.unsqueeze(1).expand(-1, num_points_in_pillar[2], -1)  # hw, #p, 2
         # generate points for hw and level 2
-        z_ranges = torch.linspace(0.5, tpv_z-0.5, num_points_in_pillar[2]) / tpv_z # #p
-        z_ranges = z_ranges.unsqueeze(0).expand(tpv_h*tpv_w, -1) # hw, #p
-        h_ranges = torch.linspace(0.5, tpv_h-0.5, tpv_h) / tpv_h
+        z_ranges = torch.linspace(0.5, tpv_z - 0.5, num_points_in_pillar[2]) / tpv_z  # #p
+        z_ranges = z_ranges.unsqueeze(0).expand(tpv_h * tpv_w, -1)  # hw, #p
+        h_ranges = torch.linspace(0.5, tpv_h - 0.5, tpv_h) / tpv_h
         h_ranges = h_ranges.reshape(-1, 1, 1).expand(-1, tpv_w, num_points_in_pillar[2]).flatten(0, 1)
-        hw_zh = torch.stack([h_ranges, z_ranges], dim=-1) # hw, #p, 2
+        hw_zh = torch.stack([h_ranges, z_ranges], dim=-1)  # hw, #p, 2
         # generate points for hw and level 3
-        z_ranges = torch.linspace(0.5, tpv_z-0.5, num_points_in_pillar[2]) / tpv_z # #p
-        z_ranges = z_ranges.unsqueeze(0).expand(tpv_h*tpv_w, -1) # hw, #p
-        w_ranges = torch.linspace(0.5, tpv_w-0.5, tpv_w) / tpv_w
+        z_ranges = torch.linspace(0.5, tpv_z - 0.5, num_points_in_pillar[2]) / tpv_z  # #p
+        z_ranges = z_ranges.unsqueeze(0).expand(tpv_h * tpv_w, -1)  # hw, #p
+        w_ranges = torch.linspace(0.5, tpv_w - 0.5, tpv_w) / tpv_w
         w_ranges = w_ranges.reshape(1, -1, 1).expand(tpv_h, -1, num_points_in_pillar[2]).flatten(0, 1)
-        hw_wz = torch.stack([z_ranges, w_ranges], dim=-1) # hw, #p, 2
-        
+        hw_wz = torch.stack([z_ranges, w_ranges], dim=-1)  # hw, #p, 2
+
         # generate points for zh and level 1
-        w_ranges = torch.linspace(0.5, tpv_w-0.5, num_points_in_pillar[1]) / tpv_w
-        w_ranges = w_ranges.unsqueeze(0).expand(tpv_z*tpv_h, -1)
-        h_ranges = torch.linspace(0.5, tpv_h-0.5, tpv_h) / tpv_h
+        w_ranges = torch.linspace(0.5, tpv_w - 0.5, num_points_in_pillar[1]) / tpv_w
+        w_ranges = w_ranges.unsqueeze(0).expand(tpv_z * tpv_h, -1)
+        h_ranges = torch.linspace(0.5, tpv_h - 0.5, tpv_h) / tpv_h
         h_ranges = h_ranges.reshape(1, -1, 1).expand(tpv_z, -1, num_points_in_pillar[1]).flatten(0, 1)
         zh_hw = torch.stack([w_ranges, h_ranges], dim=-1)
         # generate points for zh and level 2
-        z_ranges = torch.linspace(0.5, tpv_z-0.5, tpv_z) / tpv_z
+        z_ranges = torch.linspace(0.5, tpv_z - 0.5, tpv_z) / tpv_z
         z_ranges = z_ranges.reshape(-1, 1, 1).expand(-1, tpv_h, num_points_in_pillar[1]).flatten(0, 1)
-        h_ranges = torch.linspace(0.5, tpv_h-0.5, tpv_h) / tpv_h
+        h_ranges = torch.linspace(0.5, tpv_h - 0.5, tpv_h) / tpv_h
         h_ranges = h_ranges.reshape(1, -1, 1).expand(tpv_z, -1, num_points_in_pillar[1]).flatten(0, 1)
-        zh_zh = torch.stack([h_ranges, z_ranges], dim=-1) # zh, #p, 2
+        zh_zh = torch.stack([h_ranges, z_ranges], dim=-1)  # zh, #p, 2
         # generate points for zh and level 3
-        w_ranges = torch.linspace(0.5, tpv_w-0.5, num_points_in_pillar[1]) / tpv_w
-        w_ranges = w_ranges.unsqueeze(0).expand(tpv_z*tpv_h, -1)
-        z_ranges = torch.linspace(0.5, tpv_z-0.5, tpv_z) / tpv_z
+        w_ranges = torch.linspace(0.5, tpv_w - 0.5, num_points_in_pillar[1]) / tpv_w
+        w_ranges = w_ranges.unsqueeze(0).expand(tpv_z * tpv_h, -1)
+        z_ranges = torch.linspace(0.5, tpv_z - 0.5, tpv_z) / tpv_z
         z_ranges = z_ranges.reshape(-1, 1, 1).expand(-1, tpv_h, num_points_in_pillar[1]).flatten(0, 1)
         zh_wz = torch.stack([z_ranges, w_ranges], dim=-1)
 
         # generate points for wz and level 1
-        h_ranges = torch.linspace(0.5, tpv_h-0.5, num_points_in_pillar[0]) / tpv_h
-        h_ranges = h_ranges.unsqueeze(0).expand(tpv_w*tpv_z, -1)
-        w_ranges = torch.linspace(0.5, tpv_w-0.5, tpv_w) / tpv_w
+        h_ranges = torch.linspace(0.5, tpv_h - 0.5, num_points_in_pillar[0]) / tpv_h
+        h_ranges = h_ranges.unsqueeze(0).expand(tpv_w * tpv_z, -1)
+        w_ranges = torch.linspace(0.5, tpv_w - 0.5, tpv_w) / tpv_w
         w_ranges = w_ranges.reshape(-1, 1, 1).expand(-1, tpv_z, num_points_in_pillar[0]).flatten(0, 1)
         wz_hw = torch.stack([w_ranges, h_ranges], dim=-1)
         # generate points for wz and level 2
-        h_ranges = torch.linspace(0.5, tpv_h-0.5, num_points_in_pillar[0]) / tpv_h
-        h_ranges = h_ranges.unsqueeze(0).expand(tpv_w*tpv_z, -1)
-        z_ranges = torch.linspace(0.5, tpv_z-0.5, tpv_z) / tpv_z
+        h_ranges = torch.linspace(0.5, tpv_h - 0.5, num_points_in_pillar[0]) / tpv_h
+        h_ranges = h_ranges.unsqueeze(0).expand(tpv_w * tpv_z, -1)
+        z_ranges = torch.linspace(0.5, tpv_z - 0.5, tpv_z) / tpv_z
         z_ranges = z_ranges.reshape(1, -1, 1).expand(tpv_w, -1, num_points_in_pillar[0]).flatten(0, 1)
         wz_zh = torch.stack([h_ranges, z_ranges], dim=-1)
         # generate points for wz and level 3
-        w_ranges = torch.linspace(0.5, tpv_w-0.5, tpv_w) / tpv_w
+        w_ranges = torch.linspace(0.5, tpv_w - 0.5, tpv_w) / tpv_w
         w_ranges = w_ranges.reshape(-1, 1, 1).expand(-1, tpv_z, num_points_in_pillar[0]).flatten(0, 1)
-        z_ranges = torch.linspace(0.5, tpv_z-0.5, tpv_z) / tpv_z
+        z_ranges = torch.linspace(0.5, tpv_z - 0.5, tpv_z) / tpv_z
         z_ranges = z_ranges.reshape(1, -1, 1).expand(tpv_w, -1, num_points_in_pillar[0]).flatten(0, 1)
         wz_wz = torch.stack([z_ranges, w_ranges], dim=-1)
 
-        reference_points = torch.cat([
-            torch.stack([hw_hw, hw_zh, hw_wz], dim=1),
-            torch.stack([zh_hw, zh_zh, zh_wz], dim=1),
-            torch.stack([wz_hw, wz_zh, wz_wz], dim=1)
-        ], dim=0) # hw+zh+wz, 3, #p, 2
-        
+        reference_points = torch.cat(
+            [
+                torch.stack([hw_hw, hw_zh, hw_wz], dim=1),
+                torch.stack([zh_hw, zh_zh, zh_wz], dim=1),
+                torch.stack([wz_hw, wz_zh, wz_wz], dim=1),
+            ],
+            dim=0,
+        )  # hw+zh+wz, 3, #p, 2
+
         return reference_points
 
-
-    def get_grid(self, img_metas, sampling="log",  num_pts=30, device="cuda", hn=0.5, hf=50)->(torch.tensor, torch.tensor):
+    def get_grid(
+        self, img_metas, sampling="log", num_pts=30, device="cuda", hn=0.5, hf=50
+    ) -> (torch.tensor, torch.tensor):
         """
         img_metas: List(dict("c2w", "K", "img_shape"))
         sampling: "log" or "linear"
@@ -146,7 +158,7 @@ class TPVFormerEncoder(TransformerLayerSequence):
         img_hwc = []
 
         for img_meta in img_metas:
-            c2ws.append(img_meta['c2w'])
+            c2ws.append(img_meta["c2w"])
             K.append(img_meta["K"])
             img_hwc.append(img_meta["img_shape"])
         c2ws = np.asarray(c2ws)
@@ -175,7 +187,12 @@ class TPVFormerEncoder(TransformerLayerSequence):
             intrinsics.scale(self.intrin_factor)
 
             directions = ray_utils.get_ray_directions(intrinsics).to(device)
-            uvs = ((ray_utils.create_meshgrid(int(h_cam * self.intrin_factor), int(w_cam * self.intrin_factor), device=device) + 1) / 2)  # (1, H', W', 2) [0->1]
+            uvs = (
+                ray_utils.create_meshgrid(
+                    int(h_cam * self.intrin_factor), int(w_cam * self.intrin_factor), device=device
+                )
+                + 1
+            ) / 2  # (1, H', W', 2) [0->1]
 
             rays_o, rays_d = ray_utils.get_rays(directions, c2w[:3])
             rays_os.append(rays_o)
@@ -214,43 +231,76 @@ class TPVFormerEncoder(TransformerLayerSequence):
             mask[index[:, 0], index[:, 1], index[:, 2], i] = True
 
         # Apply cam_mask from img_metas so padded cameras produce all-False masks
-        cam_mask = img_metas[0].get('cam_mask', np.ones(num_cams, dtype=bool))
+        cam_mask = img_metas[0].get("cam_mask", np.ones(num_cams, dtype=bool))
         for i in range(num_cams):
             if not cam_mask[i]:
                 mask[:, :, :, i] = False
 
         return grid, mask
-    
 
     @staticmethod
     def point_sampling(grid, mask, num_pts):
         if num_pts == 4:
-            indexes = [3,6,9,12]
+            indexes = [3, 6, 9, 12]
         elif num_pts == 32:
-            indexes = [ 20,  30,  40,  50,  60,  65,  70,  73,  77,  81,  85,  89,  92,  95, 97,  99, 101, 103, 105, 108, 111, 115, 119, 123, 127, 130, 135, 140, 150, 160, 170, 180]
+            indexes = [
+                20,
+                30,
+                40,
+                50,
+                60,
+                65,
+                70,
+                73,
+                77,
+                81,
+                85,
+                89,
+                92,
+                95,
+                97,
+                99,
+                101,
+                103,
+                105,
+                108,
+                111,
+                115,
+                119,
+                123,
+                127,
+                130,
+                135,
+                140,
+                150,
+                160,
+                170,
+                180,
+            ]
         else:
-            indexes = torch.linspace(0,1,num_pts) * grid.size(3)
+            indexes = torch.linspace(0, 1, num_pts) * grid.size(3)
 
-        reference_points = grid[:,:,:,indexes]
-        reference_mask = mask[:,:,:,indexes]
-        
-        return reference_points.unsqueeze(1).flatten(2,3), reference_mask.unsqueeze(1).flatten(2,3).squeeze(-1) #(6,1,hxw,num_pts,2),(6,1,hxw,num_pts)
+        reference_points = grid[:, :, :, indexes]
+        reference_mask = mask[:, :, :, indexes]
 
+        return reference_points.unsqueeze(1).flatten(2, 3), reference_mask.unsqueeze(1).flatten(2, 3).squeeze(
+            -1
+        )  # (6,1,hxw,num_pts,2),(6,1,hxw,num_pts)
 
-
-    @auto_fp16()
-    def forward(self,
-                tpv_query, # list
-                key,
-                value,
-                *args,
-                tpv_h=None,
-                tpv_w=None,
-                tpv_z=None,
-                tpv_pos=None, # list
-                spatial_shapes=None,
-                level_start_index=None,
-                **kwargs):
+    def forward(
+        self,
+        tpv_query,  # list
+        key,
+        value,
+        *args,
+        tpv_h=None,
+        tpv_w=None,
+        tpv_z=None,
+        tpv_pos=None,  # list
+        spatial_shapes=None,
+        level_start_index=None,
+        **kwargs,
+    ):
         """Forward function for `TransformerDecoder`.
         Args:
             tpv_query (Tensor): Input tpv query with shape
@@ -268,15 +318,22 @@ class TPVFormerEncoder(TransformerLayerSequence):
 
         # Always recompute — camera count varies per batch
         device = value.device if value is not None else "cuda"
-        self.grid, self.mask = self.get_grid(kwargs['img_metas'], sampling="log", num_pts=2000, device=device, hn=0.1, hf=80)
+        self.grid, self.mask = self.get_grid(
+            kwargs["img_metas"], sampling="log", num_pts=2000, device=device, hn=0.1, hf=80
+        )
 
-        self.ref_3d_hw_uvs, self.ref_3d_hw_mask = self.point_sampling(self.grid.permute(3, 1, 2, 0, 4), self.mask.permute(3, 1, 2, 0, 4), 4)   # [num_cams, 1, h*w, 4, 2]
-        self.ref_3d_zh_uvs, self.ref_3d_zh_mask = self.point_sampling(self.grid.permute(3, 0, 1, 2, 4), self.mask.permute(3, 0, 1, 2, 4), 32)  # [num_cams, 1, z*h, 32, 2]
-        self.ref_3d_wz_uvs, self.ref_3d_wz_mask = self.point_sampling(self.grid.permute(3, 1, 0, 2, 4), self.mask.permute(3, 1, 0, 2, 4), 32)  # [num_cams, 1, w*z, 32, 2]
+        self.ref_3d_hw_uvs, self.ref_3d_hw_mask = self.point_sampling(
+            self.grid.permute(3, 1, 2, 0, 4), self.mask.permute(3, 1, 2, 0, 4), 4
+        )  # [num_cams, 1, h*w, 4, 2]
+        self.ref_3d_zh_uvs, self.ref_3d_zh_mask = self.point_sampling(
+            self.grid.permute(3, 0, 1, 2, 4), self.mask.permute(3, 0, 1, 2, 4), 32
+        )  # [num_cams, 1, z*h, 32, 2]
+        self.ref_3d_wz_uvs, self.ref_3d_wz_mask = self.point_sampling(
+            self.grid.permute(3, 1, 0, 2, 4), self.mask.permute(3, 1, 0, 2, 4), 32
+        )  # [num_cams, 1, w*z, 32, 2]
 
         reference_points_cams = [self.ref_3d_hw_uvs, self.ref_3d_zh_uvs, self.ref_3d_wz_uvs]
         tpv_masks = [self.ref_3d_hw_mask, self.ref_3d_zh_mask, self.ref_3d_wz_mask]
-
 
         ref_cross_view = self.cross_view_ref_points.clone().unsqueeze(0).expand(bs, -1, -1, -1, -1)
 
@@ -295,7 +352,8 @@ class TPVFormerEncoder(TransformerLayerSequence):
                 level_start_index=level_start_index,
                 reference_points_cams=reference_points_cams,
                 tpv_masks=tpv_masks,
-                **kwargs)
+                **kwargs,
+            )
             tpv_query = output
             if self.return_intermediate:
                 intermediate.append(output)

@@ -7,22 +7,20 @@ Please find the Apache 2 license conditions here:
 https://github.com/wzzheng/TPVFormer/blob/a1cf223ae4b79f56a2b046016c35a8fb3a0b6284/LICENSE
 """
 
-
-
 import torch
-from torch.cuda.amp import custom_bwd, custom_fwd
-from torch.autograd.function import Function, once_differentiable
 from mmcv.utils import ext_loader
-ext_module = ext_loader.load_ext(
-    '_ext', ['ms_deform_attn_backward', 'ms_deform_attn_forward'])
+from torch.amp import custom_bwd, custom_fwd
+from torch.autograd.function import Function, once_differentiable
+
+ext_module = ext_loader.load_ext("_ext", ["ms_deform_attn_backward", "ms_deform_attn_forward"])
 
 
 class MultiScaleDeformableAttnFunction_fp16(Function):
-
     @staticmethod
-    @custom_fwd(cast_inputs=torch.float16)
-    def forward(ctx, value, value_spatial_shapes, value_level_start_index,
-                sampling_locations, attention_weights, im2col_step):
+    @custom_fwd(device_type="cuda", cast_inputs=torch.float16)
+    def forward(
+        ctx, value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
+    ):
         """GPU version of multi-scale deformable attention.
 
         Args:
@@ -50,15 +48,16 @@ class MultiScaleDeformableAttnFunction_fp16(Function):
             value_level_start_index,
             sampling_locations,
             attention_weights,
-            im2col_step=ctx.im2col_step)
-        ctx.save_for_backward(value, value_spatial_shapes,
-                              value_level_start_index, sampling_locations,
-                              attention_weights)
+            im2col_step=ctx.im2col_step,
+        )
+        ctx.save_for_backward(
+            value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights
+        )
         return output
 
     @staticmethod
     @once_differentiable
-    @custom_bwd
+    @custom_bwd(device_type="cuda")
     def backward(ctx, grad_output):
         """GPU version of backward function.
 
@@ -70,8 +69,7 @@ class MultiScaleDeformableAttnFunction_fp16(Function):
              Tuple[Tensor]: Gradient
                 of input tensors in forward.
         """
-        value, value_spatial_shapes, value_level_start_index, \
-            sampling_locations, attention_weights = ctx.saved_tensors
+        value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights = ctx.saved_tensors
         grad_value = torch.zeros_like(value)
         grad_sampling_loc = torch.zeros_like(sampling_locations)
         grad_attn_weight = torch.zeros_like(attention_weights)
@@ -86,18 +84,18 @@ class MultiScaleDeformableAttnFunction_fp16(Function):
             grad_value,
             grad_sampling_loc,
             grad_attn_weight,
-            im2col_step=ctx.im2col_step)
+            im2col_step=ctx.im2col_step,
+        )
 
-        return grad_value, None, None, \
-            grad_sampling_loc, grad_attn_weight, None
+        return grad_value, None, None, grad_sampling_loc, grad_attn_weight, None
 
 
 class MultiScaleDeformableAttnFunction_fp32(Function):
-
     @staticmethod
-    @custom_fwd(cast_inputs=torch.float32)
-    def forward(ctx, value, value_spatial_shapes, value_level_start_index,
-                sampling_locations, attention_weights, im2col_step):
+    @custom_fwd(device_type="cuda", cast_inputs=torch.float32)
+    def forward(
+        ctx, value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
+    ):
         """GPU version of multi-scale deformable attention.
 
         Args:
@@ -126,15 +124,16 @@ class MultiScaleDeformableAttnFunction_fp32(Function):
             value_level_start_index,
             sampling_locations,
             attention_weights,
-            im2col_step=ctx.im2col_step)
-        ctx.save_for_backward(value, value_spatial_shapes,
-                              value_level_start_index, sampling_locations,
-                              attention_weights)
+            im2col_step=ctx.im2col_step,
+        )
+        ctx.save_for_backward(
+            value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights
+        )
         return output
 
     @staticmethod
     @once_differentiable
-    @custom_bwd
+    @custom_bwd(device_type="cuda")
     def backward(ctx, grad_output):
         """GPU version of backward function.
 
@@ -146,8 +145,7 @@ class MultiScaleDeformableAttnFunction_fp32(Function):
              Tuple[Tensor]: Gradient
                 of input tensors in forward.
         """
-        value, value_spatial_shapes, value_level_start_index, \
-            sampling_locations, attention_weights = ctx.saved_tensors
+        value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights = ctx.saved_tensors
         grad_value = torch.zeros_like(value)
         grad_sampling_loc = torch.zeros_like(sampling_locations)
         grad_attn_weight = torch.zeros_like(attention_weights)
@@ -162,14 +160,15 @@ class MultiScaleDeformableAttnFunction_fp32(Function):
             grad_value,
             grad_sampling_loc,
             grad_attn_weight,
-            im2col_step=ctx.im2col_step)
+            im2col_step=ctx.im2col_step,
+        )
 
-        return grad_value, None, None, \
-            grad_sampling_loc, grad_attn_weight, None
+        return grad_value, None, None, grad_sampling_loc, grad_attn_weight, None
 
 
 if __name__ == "__main__":
     from mmcv.ops.multi_scale_deform_attn import multi_scale_deformable_attn_pytorch
+
     value = torch.randint(10, (1, 16, 1, 1)).float().cuda()
     v = value.squeeze().reshape(4, 4)
     spatial_shapes = torch.tensor([[4, 4]]).cuda()
@@ -180,8 +179,8 @@ if __name__ == "__main__":
         value, spatial_shapes, level_start_index, sampling_locations, attention_weights, 64
     )
 
-    cpuFun = multi_scale_deformable_attn_pytorch(
-        value, spatial_shapes, sampling_locations, attention_weights
-    )
-    import pdb; pdb.set_trace()
+    cpuFun = multi_scale_deformable_attn_pytorch(value, spatial_shapes, sampling_locations, attention_weights)
+    import pdb
+
+    pdb.set_trace()
     pass

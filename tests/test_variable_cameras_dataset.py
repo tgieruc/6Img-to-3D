@@ -1,21 +1,23 @@
 import sys
 import types
+
 import numpy as np
-import torch
-import pytest
 
 # Mock heavy dependencies that may not be available in the test environment
 # so we can import the pure-numpy helper functions from dataloader.dataset.
 for mod_name in [
-    "mmcv", "mmcv.image", "mmcv.image.io",
-    "dataloader.transform_3d", "dataloader.rays_dataset",
+    "mmcv",
+    "mmcv.image",
+    "mmcv.image.io",
+    "dataloader.transform_3d",
+    "dataloader.rays_dataset",
 ]:
     if mod_name not in sys.modules:
         mock_mod = types.ModuleType(mod_name)
         if mod_name == "mmcv.image.io":
             mock_mod.imread = lambda *a, **kw: None
         if mod_name == "dataloader.transform_3d":
-            mock_mod.NormalizeMultiviewImage = lambda **kw: (lambda x: x)
+            mock_mod.NormalizeMultiviewImage = lambda **kw: lambda x: x
         if mod_name == "dataloader.rays_dataset":
             mock_mod.RaysDataset = type("RaysDataset", (), {})
         sys.modules[mod_name] = mock_mod

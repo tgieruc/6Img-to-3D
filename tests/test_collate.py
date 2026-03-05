@@ -1,6 +1,4 @@
 import numpy as np
-import torch
-import pytest
 
 
 def test_collate_pads_to_max_cameras():
@@ -26,23 +24,25 @@ def test_collate_pads_to_max_cameras():
         "num_cams": 5,
     }
 
-    batch = custom_collate_fn([
-        (sample1_imgs, sample1_meta, None),
-        (sample2_imgs, sample2_meta, None),
-    ])
+    batch = custom_collate_fn(
+        [
+            (sample1_imgs, sample1_meta, None),
+            (sample2_imgs, sample2_meta, None),
+        ]
+    )
 
     img_batch, meta_batch, _ = batch
 
     # Should pad to max cameras (5)
-    assert img_batch.shape[0] == 2   # batch size
-    assert img_batch.shape[1] == 5   # max cameras
-    assert img_batch.shape[2] == 3   # channels
+    assert img_batch.shape[0] == 2  # batch size
+    assert img_batch.shape[1] == 5  # max cameras
+    assert img_batch.shape[2] == 3  # channels
 
     # Attention mask: True for real cameras, False for padding
     assert meta_batch[0]["cam_mask"].shape == (5,)
-    assert meta_batch[0]["cam_mask"][:3].all()    # 3 real cameras
+    assert meta_batch[0]["cam_mask"][:3].all()  # 3 real cameras
     assert not meta_batch[0]["cam_mask"][3:].any()  # 2 padded
-    assert meta_batch[1]["cam_mask"].all()          # all 5 real
+    assert meta_batch[1]["cam_mask"].all()  # all 5 real
 
 
 def test_collate_same_camera_count():

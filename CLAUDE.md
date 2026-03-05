@@ -8,17 +8,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Environment Setup
 
-Requires Python 3.8, CUDA 11.8, PyTorch 2.0.1. Key non-standard dependencies: tinycudann (NVIDIA tiny-cuda-nn), mmdet/mmcv/mmseg/mmcls (OpenMMLab suite).
+Requires Python >= 3.10, CUDA 12.6, PyTorch 2.6+. Uses [uv](https://docs.astral.sh/uv/) for dependency management. Key non-standard dependencies: tinycudann (NVIDIA tiny-cuda-nn), mmengine/mmcv/mmseg (OpenMMLab v2/v3 suite).
 
 ```bash
-conda create -n sixtothree python=3.8
-pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 --index-url https://download.pytorch.org/whl/cu118
-pip install ninja git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
-pip install mmdet==2.20.0 mmengine==0.8.4 mmsegmentation==0.20.0 mmcls==0.25.0 mmcv-full==1.5.0
-pip install -r requirements.txt
+uv sync
+uv pip install ninja git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 ```
 
-Docker alternative: `docker build -t 6img .` (CUDA 11.8 base, ~30 min build).
+For development: `uv sync --group dev && uv run pre-commit install`
+
+Docker alternative: `docker build -t 6img-to-3d .` (CUDA 12.6 base).
 
 ## Commands
 
@@ -33,7 +32,8 @@ python eval.py --py-config config/config.py --resume-from <checkpoint.pth> --log
 python utils/pickles_generator.py --dataset-config config/_base_/dataset.py --py-config config/config.py
 ```
 
-No linter or test suite is configured.
+Linting: `uv run ruff check .` and `uv run ruff format --check .`
+Pre-commit: `uv run pre-commit run --all-files`
 
 ## Architecture
 
