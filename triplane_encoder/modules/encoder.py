@@ -240,9 +240,12 @@ class TPVFormerEncoder(TransformerLayerSequence):
 
     @staticmethod
     def point_sampling(grid, mask, num_pts):
-        if num_pts == 4:
+        dim_size = grid.size(3)
+        if num_pts == 4 and dim_size >= 13:
+            # Hardcoded indices tuned for tpv_z=16; safe only when dim ≥ 13.
             indexes = [3, 6, 9, 12]
-        elif num_pts == 32:
+        elif num_pts == 32 and dim_size >= 181:
+            # Hardcoded indices tuned for tpv_w=200; safe only when dim ≥ 181.
             indexes = [
                 20,
                 30,
@@ -278,7 +281,8 @@ class TPVFormerEncoder(TransformerLayerSequence):
                 180,
             ]
         else:
-            indexes = torch.linspace(0, 1, num_pts) * grid.size(3)
+            # Resolution-agnostic fallback: uniform sampling over available range.
+            indexes = torch.linspace(0, dim_size - 1, num_pts).long().tolist()
 
         reference_points = grid[:, :, :, indexes]
         reference_mask = mask[:, :, :, indexes]

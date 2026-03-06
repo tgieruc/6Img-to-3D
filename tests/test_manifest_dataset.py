@@ -148,9 +148,9 @@ def test_manifest_dataset_getitem():
     ds = ManifestDataset(TRAIN_MANIFEST)
     imgs, meta, target_path = ds[0]
 
-    assert isinstance(imgs, list) and len(imgs) > 0
-    assert all(isinstance(img, np.ndarray) for img in imgs)
-    assert all(img.dtype == np.float32 for img in imgs)
+    # imgs is returned as a stacked numpy array (N, H, W, C) for collate compatibility
+    assert isinstance(imgs, np.ndarray) and imgs.ndim == 4
+    assert imgs.dtype == np.float32
 
     for key in ("K", "c2w", "img_shape", "pose_intrinsics", "num_cams"):
         assert key in meta, f"Missing meta key: {key}"
@@ -158,7 +158,7 @@ def test_manifest_dataset_getitem():
     n = meta["num_cams"]
     assert meta["K"].shape == (n, 3, 4)
     assert meta["pose_intrinsics"].shape == (n, 20)
-    assert len(imgs) == n
+    assert imgs.shape[0] == n
     assert Path(target_path).exists(), f"Target transforms not found: {target_path}"
 
 

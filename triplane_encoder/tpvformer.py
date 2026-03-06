@@ -10,7 +10,7 @@ https://github.com/wzzheng/TPVFormer/blob/a1cf223ae4b79f56a2b046016c35a8fb3a0b62
 import warnings
 
 from mmengine.model import BaseModule
-from mmengine.registry import MODELS
+from mmseg.registry import MODELS
 
 
 @MODELS.register_module(force=True)

@@ -190,6 +190,7 @@ class CarlaDataset(data.Dataset):
                 pose_intrinsics=build_pose_intrinsics_vector(all_c2w, K),
                 num_cams=len(all_c2w),
             )
+            input_rgb = np.stack(input_rgb)
 
         mode_suffix = "test" if self.dataset_config["phase"] == "val" else self.dataset_config["phase"]
 
@@ -288,6 +289,7 @@ class PickledCarlaDataset(CarlaDataset):
                 pose_intrinsics=build_pose_intrinsics_vector(all_c2w, K),
                 num_cams=len(all_c2w),
             )
+            input_rgb = np.stack(input_rgb)
 
         if "sphere_dataset" in self.dataset_config.get("selection", ["sphere_dataset"]):
             if self.dataset_config.get("whole_image", False):

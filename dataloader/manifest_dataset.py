@@ -87,4 +87,4 @@ class ManifestDataset(data.Dataset):
             step=entry.get("step"),
         )
 
-        return imgs, img_meta, entry["target"]
+        return np.stack(imgs), img_meta, entry["target"]
