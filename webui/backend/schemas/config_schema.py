@@ -1,4 +1,9 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+# NOTE: Some field names differ from the raw config.py keys by design.
+# The config_io module handles translation in both directions:
+#   schema "towns" <-> config.py "town"
+#   schema "num_warmup_steps" <-> config.py "num_training_steps"
 
 
 class PIFConfig(BaseModel):
@@ -70,6 +75,8 @@ class TrainLoaderConfig(BaseModel):
 
 
 class ValLoaderConfig(BaseModel):
+    phase: str = "test"
+    pickled: bool = False
     batch_size: int = 1
     num_workers: int = 12
     towns: list[str] = Field(default_factory=lambda: ["Town02"])
@@ -87,6 +94,7 @@ class DatasetConfig(BaseModel):
 
 
 class FullConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     encoder: EncoderConfig = Field(default_factory=EncoderConfig)
     decoder: DecoderConfig = Field(default_factory=DecoderConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
