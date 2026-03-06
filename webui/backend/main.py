@@ -34,6 +34,11 @@ app.add_middleware(
 )
 
 
+from webui.backend.api.data import router as data_router
+
+app.include_router(data_router)
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
