@@ -293,6 +293,7 @@ def export_to_py(cfg: FullConfig) -> str:
                 factor={train.factor},
                 whole_image=True,
                 num_imgs={train.num_imgs},
+                spawn_point=["all"],
                 depth={train.depth},
                 min_cams_train={train.min_cams_train},
                 max_cams_train={train.max_cams_train},

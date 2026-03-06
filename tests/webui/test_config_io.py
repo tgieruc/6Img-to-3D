@@ -41,5 +41,7 @@ def test_export_roundtrip():
         assert reloaded.decoder.hidden_layers == cfg.decoder.hidden_layers
         assert reloaded.optimizer.lr == pytest.approx(cfg.optimizer.lr)
         assert reloaded.pif.enabled == cfg.pif.enabled
+        assert reloaded.dataset.train.towns == cfg.dataset.train.towns
+        assert reloaded.dataset.val.towns == cfg.dataset.val.towns
     finally:
         os.unlink(tmp)

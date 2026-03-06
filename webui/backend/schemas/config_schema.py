@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # NOTE: Some field names differ from the raw config.py keys by design.
 # The config_io module handles translation in both directions:
@@ -30,6 +30,13 @@ class EncoderConfig(BaseModel):
     num_points: list[int] = Field(default_factory=lambda: [8, 64, 64])
     hybrid_attn_anchors: int = 16
     hybrid_attn_points: int = 32
+
+    @field_validator("num_encoder_layers")
+    @classmethod
+    def layers_minimum(cls, v: int) -> int:
+        if v < 3:
+            raise ValueError("num_encoder_layers must be at least 3 (needs ≥1 cross + ≥2 self layers)")
+        return v
 
 
 class DecoderConfig(BaseModel):
