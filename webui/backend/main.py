@@ -35,8 +35,10 @@ app.add_middleware(
 
 
 from webui.backend.api.data import router as data_router
+from webui.backend.api.recipes import router as recipes_router
 
 app.include_router(data_router)
+app.include_router(recipes_router)
 
 
 @app.get("/api/health")
