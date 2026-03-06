@@ -2,7 +2,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # NOTE: Some field names differ from the raw config.py keys by design.
 # The config_io module handles translation in both directions:
-#   schema "towns" <-> config.py "town"
 #   schema "num_warmup_steps" <-> config.py "num_training_steps"
 
 
@@ -65,15 +64,9 @@ class OptimizerConfig(BaseModel):
 
 
 class TrainLoaderConfig(BaseModel):
-    pickled: bool = True
     batch_size: int = 1
     shuffle: bool = True
     num_workers: int = 12
-    towns: list[str] = Field(
-        default_factory=lambda: ["Town01", "Town03", "Town04", "Town05", "Town06", "Town07", "Town10HD"]
-    )
-    weather: list[str] = Field(default_factory=lambda: ["ClearNoon"])
-    vehicle: list[str] = Field(default_factory=lambda: ["vehicle.tesla.invisible"])
     factor: float = 0.08
     num_imgs: int = 3
     depth: bool = True
@@ -82,14 +75,8 @@ class TrainLoaderConfig(BaseModel):
 
 
 class ValLoaderConfig(BaseModel):
-    phase: str = "test"
-    pickled: bool = False
     batch_size: int = 1
     num_workers: int = 12
-    towns: list[str] = Field(default_factory=lambda: ["Town02"])
-    weather: list[str] = Field(default_factory=lambda: ["ClearNoon"])
-    vehicle: list[str] = Field(default_factory=lambda: ["vehicle.tesla.invisible"])
-    spawn_point: list[int] = Field(default_factory=lambda: [3, 7, 12, 48, 98, 66])
     factor: float = 0.25
     depth: bool = True
 

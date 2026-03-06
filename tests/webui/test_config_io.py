@@ -21,8 +21,8 @@ def test_load_from_existing_config():
     assert cfg.pif.factor == 0.125
     assert cfg.decoder.hidden_dim == 128
     assert cfg.optimizer.lr == pytest.approx(5e-5)
-    assert "Town01" in cfg.dataset.train.towns
-    assert cfg.dataset.val.towns == ["Town02"]
+    assert cfg.dataset.train.batch_size == 1
+    assert cfg.dataset.val.factor == pytest.approx(0.25)
 
 
 def test_export_roundtrip():
@@ -41,7 +41,7 @@ def test_export_roundtrip():
         assert reloaded.decoder.hidden_layers == cfg.decoder.hidden_layers
         assert reloaded.optimizer.lr == pytest.approx(cfg.optimizer.lr)
         assert reloaded.pif.enabled == cfg.pif.enabled
-        assert reloaded.dataset.train.towns == cfg.dataset.train.towns
-        assert reloaded.dataset.val.towns == cfg.dataset.val.towns
+        assert reloaded.dataset.train.batch_size == cfg.dataset.train.batch_size
+        assert reloaded.dataset.val.factor == pytest.approx(cfg.dataset.val.factor)
     finally:
         os.unlink(tmp)

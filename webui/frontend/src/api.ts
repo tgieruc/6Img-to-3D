@@ -178,13 +178,9 @@ export interface OptimizerConfig {
 }
 
 export interface TrainLoaderConfig {
-  pickled: boolean
   batch_size: number
   shuffle: boolean
   num_workers: number
-  towns: string[]
-  weather: string[]
-  vehicle: string[]
   factor: number
   num_imgs: number
   depth: boolean
@@ -193,14 +189,8 @@ export interface TrainLoaderConfig {
 }
 
 export interface ValLoaderConfig {
-  pickled: boolean
-  phase: string
   batch_size: number
   num_workers: number
-  towns: string[]
-  weather: string[]
-  vehicle: string[]
-  spawn_point: number[]
   factor: number
   depth: boolean
 }

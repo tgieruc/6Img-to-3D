@@ -31,16 +31,13 @@ const DEFAULT_CONFIG: FullConfig = {
   dataset: {
     data_path: '/app/data/',
     train: {
-      pickled: true, batch_size: 1, shuffle: true, num_workers: 12,
-      towns: ['Town01', 'Town03', 'Town04', 'Town05', 'Town06', 'Town07', 'Town10HD'],
-      weather: ['ClearNoon'], vehicle: ['vehicle.tesla.invisible'],
-      factor: 0.08, num_imgs: 3, depth: true, min_cams_train: 1, max_cams_train: 6,
+      batch_size: 1, shuffle: true, num_workers: 12,
+      factor: 0.08, num_imgs: 3, depth: true,
+      min_cams_train: 1, max_cams_train: 6,
     },
     val: {
-      pickled: false, phase: 'test', batch_size: 1, num_workers: 12,
-      towns: ['Town02'], weather: ['ClearNoon'],
-      vehicle: ['vehicle.tesla.invisible'],
-      spawn_point: [3, 7, 12, 48, 98, 66], factor: 0.25, depth: true,
+      batch_size: 1, num_workers: 12,
+      factor: 0.25, depth: true,
     },
   },
   pif: { enabled: false, factor: 0.125, transforms_path: '' },
@@ -110,15 +107,17 @@ optimizer = dict(
 dataset_params = dict(
     data_path="${ds.data_path}",
     train_data_loader=dict(
-        towns=${JSON.stringify(ds.train.towns)},
-        weather=${JSON.stringify(ds.train.weather)},
+        batch_size=${ds.train.batch_size},
         factor=${ds.train.factor},
         num_imgs=${ds.train.num_imgs},
+        num_workers=${ds.train.num_workers},
+        depth=${ds.train.depth ? 'True' : 'False'},
     ),
     val_data_loader=dict(
-        towns=${JSON.stringify(ds.val.towns)},
-        spawn_point=${JSON.stringify(ds.val.spawn_point)},
+        batch_size=${ds.val.batch_size},
         factor=${ds.val.factor},
+        num_workers=${ds.val.num_workers},
+        depth=${ds.val.depth ? 'True' : 'False'},
     ),
 )
 `
@@ -248,26 +247,32 @@ function ConfigForm({ cfg, onChange }: { cfg: FullConfig; onChange: (c: FullConf
         <Field label="data_path" wide>
           <TextInput value={cfg.dataset.data_path} onChange={v => set.ds('data_path', v)} placeholder="/app/data/" />
         </Field>
-        <Field label="train towns" wide>
-          <TagInput values={cfg.dataset.train.towns} onChange={v => set.tr('towns', v)} />
-        </Field>
         <Field label="train factor">
           <NumInput value={cfg.dataset.train.factor} onChange={v => set.tr('factor', v)} step={0.01} />
         </Field>
         <Field label="num_imgs">
           <NumInput value={cfg.dataset.train.num_imgs} onChange={v => set.tr('num_imgs', v)} step={1} min={1} />
         </Field>
-        <Field label="val towns" wide>
-          <TagInput values={cfg.dataset.val.towns} onChange={v => set.val('towns', v)} />
-        </Field>
-        <Field label="val spawn_points" wide>
-          <TagInput values={cfg.dataset.val.spawn_point} onChange={v => set.val('spawn_point', v)} numeric />
+        <Field label="train num_workers">
+          <NumInput value={cfg.dataset.train.num_workers} onChange={v => set.tr('num_workers', v)} step={1} min={0} />
         </Field>
         <Field label="val factor">
           <NumInput value={cfg.dataset.val.factor} onChange={v => set.val('factor', v)} step={0.01} />
         </Field>
-        <Field label="val phase">
-          <TextInput value={cfg.dataset.val.phase} onChange={v => set.val('phase', v)} />
+        <Field label="val num_workers">
+          <NumInput value={cfg.dataset.val.num_workers} onChange={v => set.val('num_workers', v)} step={1} min={0} />
+        </Field>
+        <Field label="train depth">
+          <Toggle value={cfg.dataset.train.depth} onChange={v => set.tr('depth', v)} />
+        </Field>
+        <Field label="val depth">
+          <Toggle value={cfg.dataset.val.depth} onChange={v => set.val('depth', v)} />
+        </Field>
+        <Field label="min_cams_train">
+          <NumInput value={cfg.dataset.train.min_cams_train} onChange={v => set.tr('min_cams_train', v)} step={1} min={1} />
+        </Field>
+        <Field label="max_cams_train">
+          <NumInput value={cfg.dataset.train.max_cams_train} onChange={v => set.tr('max_cams_train', v)} step={1} min={1} />
         </Field>
       </Section>
 
