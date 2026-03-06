@@ -112,7 +112,26 @@ def main(local_rank, args):
         print(triplane_encoder.load_state_dict(triplane_generator_ckpt, strict=False))
         print("loaded triplane encoder weights")
 
-    _, val_dataset_loader = data_builder.build(cfg)
+    if args.manifest_val:
+        from types import SimpleNamespace
+
+        val_dl_cfg = SimpleNamespace(
+            depth=cfg.dataset_params.val_data_loader.get("depth", False),
+            phase="val",
+            batch_size=cfg.dataset_params.val_data_loader.get("batch_size", 1),
+            factor=cfg.dataset_params.val_data_loader.get("factor", 0.25),
+            num_workers=cfg.dataset_params.val_data_loader.get("num_workers", 0),
+            shuffle=False,
+        )
+        _, val_dataset_loader = data_builder.build_from_manifests(
+            train_manifest=args.manifest_val,
+            val_manifest=args.manifest_val,
+            config=cfg,
+            train_dataset_config=val_dl_cfg,
+            val_dataset_config=val_dl_cfg,
+        )
+    else:
+        _, val_dataset_loader = data_builder.build(cfg)
 
     lpips_loss_fct = lpips.LPIPS(net="alex").cuda()
 
@@ -332,6 +351,7 @@ if __name__ == "__main__":
     parser.add_argument("--single-sampling", action="store_true")
     parser.add_argument("--num-img", type=int, default=-1)
     parser.add_argument("--dataset-config", type=str, default="")
+    parser.add_argument("--manifest-val", type=str, default="", help="Path to val.jsonl manifest")
 
     args = parser.parse_args()
 
