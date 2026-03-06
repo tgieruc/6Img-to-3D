@@ -16,6 +16,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from torch.utils import data
+from torch.utils.data import DataLoader
 
 from dataloader.dataset import build_pose_intrinsics_vector, img_norm_cfg
 from dataloader.transform_3d import NormalizeMultiviewImage
@@ -44,8 +45,10 @@ def _build_K_and_c2w(tf: dict) -> tuple[np.ndarray, list]:
 class ManifestDataset(data.Dataset):
     """Load scenes from a JSONL manifest file."""
 
-    def __init__(self, manifest_path: str | Path):
+    def __init__(self, manifest_path: str | Path, config, dataset_config):
         self.manifest_path = Path(manifest_path)
+        self.config = config
+        self.dataset_config = dataset_config
         self.transforms = NormalizeMultiviewImage(**img_norm_cfg)
         self.entries = []
         with open(self.manifest_path) as f:
@@ -87,4 +90,39 @@ class ManifestDataset(data.Dataset):
             step=entry.get("step"),
         )
 
-        return np.stack(imgs), img_meta, entry["target"]
+        # Derive the sphere/ directory from the target transforms path:
+        #   entry["target"] = ".../sphere/transforms/transforms_ego.json"
+        #   target_dir      = ".../sphere/"
+        target_tf_path = Path(entry["target"])
+        target_dir = target_tf_path.parent.parent  # .../sphere/
+
+        # Lazy import avoids module-level stub binding when tests mock rays_dataset.
+        from dataloader.rays_dataset import RaysDataset
+
+        mode = "test" if self.dataset_config.phase == "val" else self.dataset_config.phase
+        sphere_dataset = RaysDataset(
+            str(target_dir),
+            config=self.config,
+            dataset_config=self.dataset_config,
+            mode=mode,
+            factor=getattr(self.dataset_config, "factor", 1.0),
+        )
+
+        batch_size = getattr(self.dataset_config, "batch_size", 1)
+        if self.dataset_config.phase == "train":
+            sphere_dataloader = DataLoader(
+                sphere_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                num_workers=0,
+                pin_memory=False,
+            )
+        else:
+            sphere_dataloader = DataLoader(
+                sphere_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=0,
+            )
+
+        return np.stack(imgs), img_meta, sphere_dataloader
