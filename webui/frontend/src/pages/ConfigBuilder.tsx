@@ -86,12 +86,18 @@ decoder = dict(
     hidden_layers=${d.hidden_layers},
     density_activation="${d.density_activation}",
     nb_bins=${d.nb_bins},
+    nb_bins_sample=${d.nb_bins_sample},
+    hn=${d.hn},
     hf=${d.hf},
+    train_stratified=${d.train_stratified},
+    white_background=${d.white_background},
+    whiteout=${d.whiteout},
     testing_batch_size=${d.testing_batch_size},
 )
 
 optimizer = dict(
     lr=${o.lr},
+    num_training_steps=${o.num_warmup_steps},
     num_epochs=${o.num_epochs},
     lpips_loss_weight=${o.lpips_loss_weight},
     tv_loss_weight=${o.tv_loss_weight},
@@ -187,25 +193,28 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   )
 }
 
-function TagInput({ values, onChange }: { values: (string | number)[]; onChange: (v: (string | number)[]) => void }) {
+function TagInput({ values, onChange, numeric = false }: {
+  values: (string | number)[];
+  onChange: (v: (string | number)[]) => void;
+  numeric?: boolean
+}) {
   const [draft, setDraft] = useState('')
-  const isNum = values.length > 0 && typeof values[0] === 'number'
 
   function add() {
     const t = draft.trim()
     if (!t) return
-    const val: string | number = isNum ? Number(t) : t
+    const val: string | number = numeric ? Number(t) : t
     onChange([...values, val])
     setDraft('')
   }
 
   return (
     <div className="flex flex-wrap gap-1 bg-gray-900 border border-gray-700 rounded p-1.5 min-h-[30px]">
-      {values.map((v, i) => (
-        <span key={i} className="flex items-center gap-1 bg-gray-800 rounded px-1.5 py-0.5 text-xs text-gray-300"
+      {values.map((v) => (
+        <span key={String(v)} className="flex items-center gap-1 bg-gray-800 rounded px-1.5 py-0.5 text-xs text-gray-300"
           style={monoStyle}>
           {String(v)}
-          <button onClick={() => onChange(values.filter((_, j) => j !== i))}
+          <button onClick={() => onChange(values.filter((x) => x !== v))}
             className="text-gray-600 hover:text-red-400 leading-none">×</button>
         </span>
       ))}
@@ -251,7 +260,7 @@ function ConfigForm({ cfg, onChange }: { cfg: FullConfig; onChange: (c: FullConf
           <TagInput values={cfg.dataset.val.towns} onChange={v => set.val('towns', v)} />
         </Field>
         <Field label="val spawn_points" wide>
-          <TagInput values={cfg.dataset.val.spawn_point} onChange={v => set.val('spawn_point', v)} />
+          <TagInput values={cfg.dataset.val.spawn_point} onChange={v => set.val('spawn_point', v)} numeric />
         </Field>
         <Field label="val factor">
           <NumInput value={cfg.dataset.val.factor} onChange={v => set.val('factor', v)} step={0.01} />
@@ -284,13 +293,13 @@ function ConfigForm({ cfg, onChange }: { cfg: FullConfig; onChange: (c: FullConf
           <Toggle value={cfg.encoder.scene_contraction} onChange={v => set.enc('scene_contraction', v)} />
         </Field>
         <Field label="contraction_factor" wide>
-          <TagInput values={cfg.encoder.scene_contraction_factor} onChange={v => set.enc('scene_contraction_factor', v)} />
+          <TagInput values={cfg.encoder.scene_contraction_factor} onChange={v => set.enc('scene_contraction_factor', v)} numeric />
         </Field>
         <Field label="offset [z,h,w]" wide>
-          <TagInput values={cfg.encoder.offset} onChange={v => set.enc('offset', v)} />
+          <TagInput values={cfg.encoder.offset} onChange={v => set.enc('offset', v)} numeric />
         </Field>
         <Field label="scale [z,h,w]" wide>
-          <TagInput values={cfg.encoder.scale} onChange={v => set.enc('scale', v)} />
+          <TagInput values={cfg.encoder.scale} onChange={v => set.enc('scale', v)} numeric />
         </Field>
       </Section>
 
