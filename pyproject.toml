@@ -57,7 +57,12 @@ packages = [
     "triplane_decoder",
     "triplane_encoder",
     "utils",
+    "webui",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "--import-mode=importlib"
 
 [tool.ruff]
 target-version = "py310"
