@@ -3,7 +3,7 @@ import json
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -46,47 +46,43 @@ def _job_dict(j: JobRecord) -> dict:
 
 
 @router.post("/train", status_code=201)
-def create_train_job(
+async def create_train_job(
     payload: TrainJobCreate,
-    background: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     job = JobRecord(job_type="train", name=payload.name)
     db.add(job)
     db.commit()
     db.refresh(job)
-    background.add_task(
-        asyncio.ensure_future,
+    asyncio.create_task(
         job_runner.run_train_job(
             job.id,
             payload.py_config,
             payload.name,
             payload.manifest_train,
             payload.manifest_val,
-        ),
+        )
     )
     return {"id": job.id, "status": "queued"}
 
 
 @router.post("/eval", status_code=201)
-def create_eval_job(
+async def create_eval_job(
     payload: EvalJobCreate,
-    background: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     job = JobRecord(job_type="eval", name=payload.name)
     db.add(job)
     db.commit()
     db.refresh(job)
-    background.add_task(
-        asyncio.ensure_future,
+    asyncio.create_task(
         job_runner.run_eval_job(
             job.id,
             payload.resume_from,
             payload.manifest_val,
             payload.py_config,
             payload.name,
-        ),
+        )
     )
     return {"id": job.id, "status": "queued"}
 
