@@ -29,27 +29,37 @@ from triplane_decoder.pif import PIF
 from triplane_decoder.rendering import render_rays
 
 matplotlib.use("Agg")
+import mlflow
 from matplotlib import pyplot as plt
-from tensorboardX import SummaryWriter
 
 
 def main(local_rank, args):
     # global settings
 
-    if args.log_dir == "":
-        writer = SummaryWriter()
-    else:
-        logdir = f"runs/{time.strftime('%b%d_%H-%M-%S', time.localtime())}_{args.log_dir}"
-        writer = SummaryWriter(log_dir=logdir)
-
-    save_dir = os.path.join(writer.logdir, "models")
+    experiment_name = args.log_dir or "6img-to-3d"
+    mlflow.set_experiment(experiment_name)
+    active_run = mlflow.start_run(run_name=args.log_dir or None)
+    logdir = (
+        f"runs/{time.strftime('%b%d_%H-%M-%S', time.localtime())}_{args.log_dir}"
+        if args.log_dir
+        else f"runs/{time.strftime('%b%d_%H-%M-%S', time.localtime())}"
+    )
+    save_dir = os.path.join(logdir, "models")
+    mlflow.log_params(
+        {
+            "config": args.py_config,
+            "log_dir": args.log_dir,
+            "manifest_train": args.manifest_train or "",
+        }
+    )
 
     torch.backends.cudnn.benchmark = True
 
     # load config
     cfg = Config.fromfile(args.py_config)
 
-    Config.dump(cfg, os.path.join(writer.logdir, "config.py"))
+    os.makedirs(logdir, exist_ok=True)
+    Config.dump(cfg, os.path.join(logdir, "config.py"))
 
     triplane_encoder = model_builder.build(cfg.model)
     triplane_decoder = TriplaneDecoder(cfg)
@@ -315,7 +325,7 @@ def main(local_rank, args):
             for key in loss_dict.keys():
                 loss_dict[key] /= len(train_dataset_loader) / 100
 
-            writer.add_scalars("Loss/train", loss_dict, epoch)
+            mlflow.log_metrics({f"train/{k}": v for k, v in loss_dict.items()}, step=epoch)
 
             # save models
             if epoch % 10 == 0:
@@ -397,7 +407,7 @@ def main(local_rank, args):
                         ax[1].axis("off")
                         ax[1].set_title("Ground Truth Image")
 
-                        writer.add_figure(f"Image{epoch}/{i_iter_val}", fig, global_step=img_index)
+                        # figures logged at eval time
                         plt.close()
 
                         lpips_metric = torch.mean(
@@ -427,10 +437,11 @@ def main(local_rank, args):
 
                     plt.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.99, wspace=0.01, hspace=0.01)
 
-                    writer.add_figure(f"Image{epoch}/{i_iter_val}", fig, global_step=img_index)
+                    # figures logged at eval time
 
-                writer.add_scalar("val/psnr", np.mean(psnr_list), epoch)
-                writer.add_scalar("val/lpips", np.mean(lpips_list), epoch)
+                mlflow.log_metrics(
+                    {"val/psnr": float(np.mean(psnr_list)), "val/lpips": float(np.mean(lpips_list))}, step=epoch
+                )
                 print(f"{args.log_dir} PSNR : {np.mean(psnr_list):.2f}, LPIPS : {np.mean(lpips_list):.2f}")
 
                 if np.mean(psnr_list) > best_psnr:
@@ -467,6 +478,8 @@ def main(local_rank, args):
             triplane_encoder.load_state_dict(ckpt["tpv"])
             optimizer.load_state_dict(ckpt["optimizer"])
             scheduler.load_state_dict(ckpt["scheduler"])
+
+    mlflow.end_run()
 
 
 if __name__ == "__main__":
