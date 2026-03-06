@@ -92,3 +92,25 @@ def get_recipe(recipe_id: str, db: Session = Depends(get_db)):
         "test_manifest": r.test_manifest,
         "scene_counts": r.scene_counts,
     }
+
+
+@router.post("/{recipe_id}/export")
+def export_recipe(recipe_id: str, db: Session = Depends(get_db)):
+    import yaml as _yaml
+
+    from webui.backend.services.manifest_exporter import export_manifests
+
+    r = db.get(RecipeRecord, recipe_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    recipe_dict = _yaml.safe_load(r.yaml_content)
+    result = export_manifests(recipe_dict)
+
+    r.train_manifest = result.get("train")
+    r.val_manifest = result.get("val")
+    r.test_manifest = result.get("test")
+    r.scene_counts = result["scene_counts"]
+    db.commit()
+
+    return result

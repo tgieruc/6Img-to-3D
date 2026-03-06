@@ -78,3 +78,55 @@ def test_overlap_fails(client):
 def test_get_nonexistent_returns_404(client):
     resp = client.get("/api/recipes/nonexistent-id")
     assert resp.status_code == 404
+
+
+def test_export_recipe(client, tmp_path):
+    import json
+    from pathlib import Path
+
+    # create minimal data structure
+    for town, sp in [("Town01", 1), ("Town02", 1)]:
+        for sensor in ["nuscenes", "sphere"]:
+            d = (
+                tmp_path
+                / "data"
+                / town
+                / "ClearNoon"
+                / "vehicle.mini.cooper_s"
+                / f"spawn_point_{sp}"
+                / "step_0"
+                / "ego_vehicle"
+                / sensor
+                / "transforms"
+            )
+            d.mkdir(parents=True)
+            tf = {"frames": [], "fl_x": 100, "fl_y": 100, "cx": 32, "cy": 24, "w": 64, "h": 48}
+            (d / "transforms_ego.json").write_text(json.dumps(tf))
+
+    recipe = {
+        "name": "export-test",
+        "data_dir": str(tmp_path / "data"),
+        "output_dir": str(tmp_path / "out"),
+        "global_filters": {
+            "vehicles": ["vehicle.mini.cooper_s"],
+            "weathers": ["ClearNoon"],
+            "input_sensor": "nuscenes",
+            "target_sensor": "sphere",
+        },
+        "splits": {
+            "train": {"towns": ["Town01"], "spawn_points": "all", "steps": "all"},
+            "val": {"towns": ["Town02"], "spawn_points": "all", "steps": "all"},
+        },
+    }
+    # Create recipe
+    resp = client.post("/api/recipes", json=recipe)
+    assert resp.status_code == 201
+    rid = resp.json()["id"]
+
+    # Export
+    resp2 = client.post(f"/api/recipes/{rid}/export")
+    assert resp2.status_code == 200
+    result = resp2.json()
+    assert result["scene_counts"]["train"] == 1
+    assert result["scene_counts"]["val"] == 1
+    assert Path(result["train"]).exists()
