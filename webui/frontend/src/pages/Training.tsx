@@ -107,6 +107,7 @@ function NewRunDialog({
   const [pyConfig, setPyConfig] = useState('config/config.py')
   const [manifestTrain, setManifestTrain] = useState('')
   const [manifestVal, setManifestVal] = useState('')
+  const [selectedConfigId, setSelectedConfigId] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -146,7 +147,7 @@ function NewRunDialog({
           </div>
           <div>
             <label className="text-xs text-gray-400 block mb-1">Config file</label>
-            <input value={pyConfig} onChange={e => setPyConfig(e.target.value)}
+            <input value={pyConfig} onChange={e => { setPyConfig(e.target.value); setSelectedConfigId('') }}
               className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm" />
           </div>
           <div>
@@ -162,11 +163,13 @@ function NewRunDialog({
           <div>
             <label className="text-xs text-gray-400 block mb-1">From config builder (optional)</label>
             <select
-              defaultValue=""
+              value={selectedConfigId}
               onChange={async (e) => {
-                if (!e.target.value) return
+                const id = e.target.value
+                setSelectedConfigId(id)
+                if (!id) return
                 try {
-                  const { path } = await writeConfigToDisk(e.target.value)
+                  const { path } = await writeConfigToDisk(id)
                   setPyConfig(path)
                 } catch {
                   setError('Failed to export config to disk')
