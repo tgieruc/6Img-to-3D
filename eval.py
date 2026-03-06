@@ -118,7 +118,8 @@ def main(local_rank, args):
         for scene_index, (imgs, img_metas, val_dataset) in tqdm(
             enumerate(val_dataset_loader), total=len(val_dataset_loader)
         ):
-            val_dataset = val_dataset[0].dataset
+            inner = val_dataset[0]
+            val_dataset = inner if hasattr(inner, "intrinsics") else inner.dataset
             W, H = val_dataset.intrinsics.width, val_dataset.intrinsics.height
             val_dataset = val_dataset.dataset
 

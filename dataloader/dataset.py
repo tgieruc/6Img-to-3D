@@ -10,7 +10,6 @@ import random
 import cv2
 import numpy as np
 from torch.utils import data
-from torch.utils.data import DataLoader
 
 from dataloader.rays_dataset import RaysDataset
 from dataloader.transform_3d import NormalizeMultiviewImage
@@ -116,14 +115,17 @@ class CarlaDataset(data.Dataset):
 
     def get_data(self, town, weather, vehicle, spawn_point, step):
         data_path = os.path.join(self.data_path, town, weather, vehicle, spawn_point, step)
+        # Support both data layouts: step_N/nuscenes/ and step_N/ego_vehicle/nuscenes/
+        vehicle_path = os.path.join(data_path, "ego_vehicle")
+        base_path = vehicle_path if os.path.isdir(vehicle_path) else data_path
         data = dict(
             town=town,
             weather=weather,
             vehicle=vehicle,
             spawn_point=spawn_point,
             step=step,
-            nuscenes=os.path.join(data_path, "nuscenes"),
-            sphere=os.path.join(data_path, "sphere"),
+            nuscenes=os.path.join(base_path, "nuscenes"),
+            sphere=os.path.join(base_path, "sphere"),
         )
 
         return data
@@ -161,13 +163,21 @@ class CarlaDataset(data.Dataset):
                 K[cam_idx, 0, 2] = cx
                 K[cam_idx, 1, 2] = cy
 
+            img_factor = self.dataset_config.get("img_factor", 1.0)
             for frame in input_data["frames"]:
-                input_rgb.append(
-                    cv2.imread(os.path.join(data["nuscenes"], "transforms", frame["file_path"]), cv2.IMREAD_UNCHANGED)[
-                        :, :, :3
-                    ].astype(np.float32)
-                )
+                img = cv2.imread(
+                    os.path.join(data["nuscenes"], "transforms", frame["file_path"]), cv2.IMREAD_UNCHANGED
+                )[:, :, :3].astype(np.float32)
+                if img_factor != 1.0:
+                    h, w = img.shape[:2]
+                    img = cv2.resize(img, (int(w * img_factor), int(h * img_factor)), interpolation=cv2.INTER_AREA)
+                input_rgb.append(img)
                 all_c2w.append(frame["transform_matrix"])
+
+            if img_factor != 1.0:
+                # Scale intrinsics to match resized images
+                K[:, 0, :] *= img_factor  # fx, cx
+                K[:, 1, :] *= img_factor  # fy, cy
 
             input_rgb = self.transforms(input_rgb)
 
@@ -202,19 +212,20 @@ class CarlaDataset(data.Dataset):
                 mode=mode_suffix,
                 factor=self.dataset_config.factor,
             )
-
             if self.dataset_config["phase"] == "train":
-                sphere_dataloader = DataLoader(
-                    sphere_dataset,
-                    batch_size=self.dataset_config.get("batch_size", 1),
-                    shuffle=True,
-                    num_workers=12,
-                    pin_memory=True,
+                # Subsample frames and return flat ray array (same format as PickledCarlaDataset).
+                n_frames = len(sphere_dataset.meta["frames"])
+                rays_per_frame = sphere_dataset.intrinsics.width * sphere_dataset.intrinsics.height
+                num_imgs = self.dataset_config.get("num_imgs", n_frames)
+                selected = random.sample(range(n_frames), min(num_imgs, n_frames))
+                all_rays = sphere_dataset.dataset.numpy()  # (n_frames * rays_per_frame, D)
+                sphere_dataloader = np.concatenate(
+                    [all_rays[i * rays_per_frame : (i + 1) * rays_per_frame] for i in selected]
                 )
             else:
-                sphere_dataloader = DataLoader(
-                    sphere_dataset, batch_size=self.dataset_config.get("batch_size", 1), shuffle=False
-                )
+                # For val/test: return the RaysDataset object so the eval loop can access
+                # intrinsics and per-image ray grouping.
+                sphere_dataloader = sphere_dataset
 
         if "path" in self.dataset_config.get("selection", ["path"]):
             path = f"{data['town']}_{data['weather']}_{data['vehicle']}_{data['spawn_point']}_{data['step']}"
@@ -260,13 +271,21 @@ class PickledCarlaDataset(CarlaDataset):
                 K[cam_idx, 0, 2] = cx
                 K[cam_idx, 1, 2] = cy
 
+            img_factor = self.dataset_config.get("img_factor", 1.0)
             for frame in input_data["frames"]:
-                input_rgb.append(
-                    cv2.imread(os.path.join(data["nuscenes"], "transforms", frame["file_path"]), cv2.IMREAD_UNCHANGED)[
-                        :, :, :3
-                    ].astype(np.float32)
-                )
+                img = cv2.imread(
+                    os.path.join(data["nuscenes"], "transforms", frame["file_path"]), cv2.IMREAD_UNCHANGED
+                )[:, :, :3].astype(np.float32)
+                if img_factor != 1.0:
+                    h, w = img.shape[:2]
+                    img = cv2.resize(img, (int(w * img_factor), int(h * img_factor)), interpolation=cv2.INTER_AREA)
+                input_rgb.append(img)
                 all_c2w.append(frame["transform_matrix"])
+
+            if img_factor != 1.0:
+                # Scale intrinsics to match resized images
+                K[:, 0, :] *= img_factor  # fx, cx
+                K[:, 1, :] *= img_factor  # fy, cy
 
             input_rgb = self.transforms(input_rgb)
 

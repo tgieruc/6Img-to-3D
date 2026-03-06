@@ -228,7 +228,8 @@ def main(local_rank, args):
                     ray_origins = batch[:, :3]
                     ray_directions = batch[:, 3:6]
                     ground_truth_px_values = batch[:, 6:9]
-                    if cfg.optimizer.depth_loss_weight > 0:
+                    has_depth = batch.shape[1] > 10
+                    if cfg.optimizer.depth_loss_weight > 0 and has_depth:
                         ground_truth_depth = batch[:, 10:]
 
                     if cfg.decoder.whiteout:
@@ -260,8 +261,11 @@ def main(local_rank, args):
 
                     depth_loss = (
                         cfg.optimizer.depth_loss_weight
-                        * mse_loss_fct(torch.sqrt(depth / 60), torch.sqrt(torch.clip(ground_truth_depth / 60, 0, 1)))
-                        if cfg.optimizer.depth_loss_weight > 0
+                        * mse_loss_fct(
+                            torch.sqrt(torch.clip(torch.nan_to_num(depth, nan=0.0) / 60, 0, 1)),
+                            torch.sqrt(torch.clip(torch.nan_to_num(ground_truth_depth, nan=0.0) / 60, 0, 1)),
+                        )
+                        if cfg.optimizer.depth_loss_weight > 0 and has_depth
                         else 0
                     )
 
@@ -288,7 +292,7 @@ def main(local_rank, args):
                             loss_dict["dist_loss"] += dist_loss.item()
                         if cfg.optimizer.lpips_loss_weight:
                             loss_dict["lpips_loss"] += lpips_loss.item()
-                        if cfg.optimizer.depth_loss_weight > 0:
+                        if cfg.optimizer.depth_loss_weight > 0 and has_depth:
                             loss_dict["depth_loss"] += depth_loss.item()
 
                         pbar.set_description(f"loss: {loss.item():.4f}")
@@ -318,14 +322,23 @@ def main(local_rank, args):
                 os.path.join(save_dir, "model_latest.pth"),
             )
 
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
+            # Detach triplane planes to free encoder backward graph before val
+            triplane_decoder.plane_zh = triplane_decoder.plane_zh.detach()
+            triplane_decoder.plane_hw = triplane_decoder.plane_hw.detach()
+            triplane_decoder.plane_zw = triplane_decoder.plane_zw.detach()
+            torch.cuda.empty_cache()
 
             with torch.no_grad():
                 psnr_list = []
                 lpips_list = []
 
                 for i_iter_val, (imgs, img_metas, val_dataset) in enumerate(val_dataset_loader):
-                    val_dataset = val_dataset[0].dataset
+                    inner = val_dataset[0]
+                    # Support both DataLoader-wrapped and direct RaysDataset
+                    val_dataset = (
+                        inner.dataset if hasattr(inner, "dataset") and not hasattr(inner, "intrinsics") else inner
+                    )
                     W, H = val_dataset.intrinsics.width, val_dataset.intrinsics.height
 
                     triplane_decoder.eval()

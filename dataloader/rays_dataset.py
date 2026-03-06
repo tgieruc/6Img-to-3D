@@ -21,7 +21,9 @@ class RaysDataset(Dataset):
     def __init__(self, config_path, config, dataset_config, mode="val", factor=1):
         super().__init__()
         if mode != "full":
-            self.config_path = os.path.join(config_path, f"transforms/transforms_ego_{mode}.json")
+            split_path = os.path.join(config_path, f"transforms/transforms_ego_{mode}.json")
+            fallback_path = os.path.join(config_path, "transforms/transforms_ego.json")
+            self.config_path = split_path if os.path.exists(split_path) else fallback_path
         else:
             self.config_path = os.path.join(config_path, "transforms/transforms_ego.json")
         self.config_dir = os.path.dirname(self.config_path)
@@ -51,9 +53,7 @@ class RaysDataset(Dataset):
         self.config_path = os.path.join(root_path, self.config_path)
 
         if not os.path.exists(self.config_path):
-            raise ValueError(
-                f"Config file {self.config_path} does not exist. Full path: {os.path.abspath(self.config_path)}"
-            )
+            raise ValueError(f"Config file does not exist: {self.config_path}")
         with open(self.config_path) as f:
             self.meta = json.load(f)
 

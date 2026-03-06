@@ -140,13 +140,14 @@ class PIF(torch.nn.Module):
 
     @staticmethod
     def aggregate(features, valid, num_features_to_keep=2):
-        return features.gather(
-            0,
-            valid.int()
-            .argsort(0, descending=True)[:num_features_to_keep, :]
-            .unsqueeze(-1)
-            .expand(-1, -1, features.size(-1)),
-        )
+        C, N, F = features.shape
+        idx = valid.int().argsort(0, descending=True)[:num_features_to_keep, :]  # (k, N), k <= C
+        result = features.gather(0, idx.unsqueeze(-1).expand(-1, -1, F))  # (k, N, F)
+        # Pad with zeros if fewer cameras than num_features_to_keep
+        if result.size(0) < num_features_to_keep:
+            pad = torch.zeros(num_features_to_keep - result.size(0), N, F, device=features.device, dtype=features.dtype)
+            result = torch.cat([result, pad], dim=0)
+        return result
 
 
 def batch_project(UVW: torch.tensor, proj_mat, img_hw):

@@ -327,14 +327,14 @@ class TPVFormerEncoder(TransformerLayerSequence):
         )
 
         self.ref_3d_hw_uvs, self.ref_3d_hw_mask = self.point_sampling(
-            self.grid.permute(3, 1, 2, 0, 4), self.mask.permute(3, 1, 2, 0, 4), 4
-        )  # [num_cams, 1, h*w, 4, 2]
+            self.grid.permute(3, 1, 2, 0, 4), self.mask.permute(3, 1, 2, 0, 4), self.num_points_in_pillar[0]
+        )  # [num_cams, 1, h*w, num_points_in_pillar[0], 2]
         self.ref_3d_zh_uvs, self.ref_3d_zh_mask = self.point_sampling(
-            self.grid.permute(3, 0, 1, 2, 4), self.mask.permute(3, 0, 1, 2, 4), 32
-        )  # [num_cams, 1, z*h, 32, 2]
+            self.grid.permute(3, 0, 1, 2, 4), self.mask.permute(3, 0, 1, 2, 4), self.num_points_in_pillar[1]
+        )  # [num_cams, 1, z*h, num_points_in_pillar[1], 2]
         self.ref_3d_wz_uvs, self.ref_3d_wz_mask = self.point_sampling(
-            self.grid.permute(3, 1, 0, 2, 4), self.mask.permute(3, 1, 0, 2, 4), 32
-        )  # [num_cams, 1, w*z, 32, 2]
+            self.grid.permute(3, 1, 0, 2, 4), self.mask.permute(3, 1, 0, 2, 4), self.num_points_in_pillar[2]
+        )  # [num_cams, 1, w*z, num_points_in_pillar[2], 2]
 
         reference_points_cams = [self.ref_3d_hw_uvs, self.ref_3d_zh_uvs, self.ref_3d_wz_uvs]
         tpv_masks = [self.ref_3d_hw_mask, self.ref_3d_zh_mask, self.ref_3d_wz_mask]
