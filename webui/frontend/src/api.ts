@@ -61,3 +61,46 @@ export async function listRecipes() {
   const res = await api.get('/api/recipes')
   return res.data
 }
+
+export interface Job {
+  id: string
+  name: string
+  type: string
+  status: string
+  mlflow_run_id: string | null
+  created_at: string | null
+  started_at: string | null
+  completed_at: string | null
+  error: string | null
+}
+
+export interface MetricPoint { step: number; value: number }
+
+export async function listJobs(): Promise<Job[]> {
+  const res = await api.get('/api/jobs')
+  return res.data
+}
+
+export async function getJob(id: string): Promise<Job & { log: string }> {
+  const res = await api.get(`/api/jobs/${id}`)
+  return res.data
+}
+
+export async function getMetrics(id: string): Promise<Record<string, MetricPoint[]>> {
+  const res = await api.get(`/api/jobs/${id}/metrics`)
+  return res.data
+}
+
+export async function createTrainJob(payload: {
+  name: string
+  py_config: string
+  manifest_train: string
+  manifest_val: string
+}): Promise<{ id: string; status: string }> {
+  const res = await api.post('/api/jobs/train', payload)
+  return res.data
+}
+
+export async function cancelJob(id: string): Promise<void> {
+  await api.delete(`/api/jobs/${id}`)
+}

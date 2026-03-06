@@ -1,11 +1,9 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SplitManager from './pages/SplitManager'
+import Training from './pages/Training'
 
 const queryClient = new QueryClient()
-function Training() {
-  return <div className="text-gray-400">Training Dashboard — coming soon</div>
-}
 function Evaluation() {
   return <div className="text-gray-400">Evaluation Viewer — coming soon</div>
 }
