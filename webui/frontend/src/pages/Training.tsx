@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
-import { listJobs, getJob, getMetrics, createTrainJob, cancelJob, listRecipes, type Job, type MetricPoint } from '../api'
+import { listJobs, getJob, getMetrics, createTrainJob, cancelJob, listRecipes, listConfigs, writeConfigToDisk, type ConfigRecord, type Job, type MetricPoint } from '../api'
 
 const STATUS_COLORS: Record<string, string> = {
   queued: 'text-gray-400',
@@ -111,6 +111,7 @@ function NewRunDialog({
   const [error, setError] = useState<string | null>(null)
 
   const { data: recipes = [] } = useQuery({ queryKey: ['recipes'], queryFn: listRecipes })
+  const { data: savedConfigs = [] } = useQuery({ queryKey: ['configs'], queryFn: listConfigs })
 
   function selectRecipe(recipeId: string) {
     const r = (recipes as any[]).find((x: any) => x.id === recipeId)
@@ -155,6 +156,27 @@ function NewRunDialog({
               <option value="">— select recipe —</option>
               {(recipes as any[]).map((r: any) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">From config builder (optional)</label>
+            <select
+              defaultValue=""
+              onChange={async (e) => {
+                if (!e.target.value) return
+                try {
+                  const { path } = await writeConfigToDisk(e.target.value)
+                  setPyConfig(path)
+                } catch {
+                  setError('Failed to export config to disk')
+                }
+              }}
+              className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm"
+            >
+              <option value="">— use path above —</option>
+              {(savedConfigs as ConfigRecord[]).map((c: ConfigRecord) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
