@@ -56,3 +56,25 @@ def scan():
 def options():
     result = scan()
     return {k: result[k] for k in ("towns", "weathers", "vehicles", "sensors")}
+
+
+from pydantic import BaseModel as _BaseModel
+
+
+class _PreviewRequest(_BaseModel):
+    data_dir: str
+    global_filters: dict
+    splits: dict
+
+
+@router.post("/preview")
+def preview(req: _PreviewRequest):
+    from webui.backend.services.manifest_exporter import _discover_scenes, _matches_rule
+
+    data_dir = Path(req.data_dir)
+    if not data_dir.exists():
+        return {k: 0 for k in req.splits}
+    all_entries = _discover_scenes(data_dir, req.global_filters)
+    return {
+        split_name: sum(1 for e in all_entries if _matches_rule(e, rule)) for split_name, rule in req.splits.items()
+    }
