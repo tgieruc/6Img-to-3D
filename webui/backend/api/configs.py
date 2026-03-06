@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -103,9 +104,10 @@ def export_config(config_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Config not found")
     cfg = FullConfig(**r.data)
     py_str = export_to_py(cfg)
+    safe_name = re.sub(r"[^\w\-.]", "_", r.name)
     return PlainTextResponse(
         content=py_str,
-        headers={"Content-Disposition": f'attachment; filename="{r.name}.py"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.py"'},
     )
 
 
@@ -116,7 +118,7 @@ def write_config_to_disk(config_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Config not found")
     cfg = FullConfig(**r.data)
     py_str = export_to_py(cfg)
-    out_dir = Path("runs/configs")
+    out_dir = Path(__file__).parents[3] / "runs" / "configs"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{r.id}.py"
     out_path.write_text(py_str)
