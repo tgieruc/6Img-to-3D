@@ -117,6 +117,8 @@ def export_to_py(cfg: FullConfig) -> str:
     train = ds.train
     val = ds.val
 
+    # Layer split: (num_encoder_layers - 2) cross-attn layers + 2 self-attn layers.
+    # Mirror this formula in ConfigBuilder.tsx generatePreview if changed.
     n_cross = max(e.num_encoder_layers - 2, 1)
     n_self = e.num_encoder_layers - n_cross
 
