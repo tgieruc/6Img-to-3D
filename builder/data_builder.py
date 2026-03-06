@@ -59,12 +59,16 @@ def build_from_manifests(
     train_dataset = ManifestDataset(train_manifest, config=config, dataset_config=train_dataset_config)
     val_dataset = ManifestDataset(val_manifest, config=config, dataset_config=val_dataset_config)
 
+    train_num_workers = getattr(train_dataset_config, "num_workers", 0)
+    val_num_workers = getattr(val_dataset_config, "num_workers", 0)
+    train_shuffle = getattr(train_dataset_config, "shuffle", True)
+
     train_loader = torch.utils.data.DataLoader(
         dataset=train_dataset,
         batch_size=1,
         collate_fn=custom_collate_fn,
-        shuffle=True,
-        num_workers=0,
+        shuffle=train_shuffle,
+        num_workers=train_num_workers,
         pin_memory=False,
     )
     val_loader = torch.utils.data.DataLoader(
@@ -72,6 +76,6 @@ def build_from_manifests(
         batch_size=1,
         collate_fn=custom_collate_fn,
         shuffle=False,
-        num_workers=0,
+        num_workers=val_num_workers,
     )
     return train_loader, val_loader

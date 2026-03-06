@@ -142,14 +142,16 @@ def main(local_rank, args):
             phase="train",
             batch_size=cfg.dataset_params.train_data_loader.get("batch_size", 1),
             factor=cfg.dataset_params.train_data_loader.get("factor", 1.0),
-            num_workers=0,
+            num_workers=cfg.dataset_params.train_data_loader.get("num_workers", 0),
+            shuffle=cfg.dataset_params.train_data_loader.get("shuffle", True),
         )
         val_dl_cfg = SimpleNamespace(
             depth=cfg.dataset_params.val_data_loader.get("depth", False),
             phase="val",
             batch_size=cfg.dataset_params.val_data_loader.get("batch_size", 1),
             factor=cfg.dataset_params.val_data_loader.get("factor", 0.25),
-            num_workers=0,
+            num_workers=cfg.dataset_params.val_data_loader.get("num_workers", 0),
+            shuffle=False,
         )
         train_dataset_loader, val_dataset_loader = data_builder.build_from_manifests(
             train_manifest=args.manifest_train,
