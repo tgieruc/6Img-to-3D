@@ -230,7 +230,7 @@ function RunDetail({ jobId }: { jobId: string }) {
   const [streamedLog, setStreamedLog] = useState('')
   useEffect(() => {
     if (!job || !isRunning(job.status)) return
-    const es = new EventSource(`http://localhost:8001/api/jobs/${jobId}/stream`)
+    const es = new EventSource(`/api/jobs/${jobId}/stream`)
     es.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data)

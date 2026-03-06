@@ -92,7 +92,6 @@ def load_from_py(path: str) -> FullConfig:
     pif = PIFConfig(
         enabled=bool(raw.get("pif", False)),
         factor=raw.get("pif_factor", 0.125),
-        transforms_path=raw.get("pif_transforms", ""),
     )
 
     return FullConfig(encoder=encoder, decoder=decoder, optimizer=optimizer, dataset=dataset, pif=pif)
@@ -142,7 +141,6 @@ def export_to_py(cfg: FullConfig) -> str:
 
         pif = {p.enabled}
         pif_factor = {p.factor}
-        pif_transforms = "{p.transforms_path}"
 
         tpv_encoder_layers = {e.num_encoder_layers}
         num_points_in_pillar = {e.num_points_in_pillar}

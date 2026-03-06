@@ -4,11 +4,9 @@
 # ==============================================================================
 
 import argparse
-import json
 import os
 import warnings
 
-import imageio
 import numpy as np
 import torch
 from mmengine.config import Config
@@ -65,41 +63,10 @@ def main(local_rank, args):
     triplane_encoder = model_builder.build(cfg.model)
     triplane_decoder = TriplaneDecoder(cfg)
 
-    if cfg.pif:
-        path = cfg.pif_transforms
-        with open(os.path.join(path, "transforms/transforms_ego.json")) as f:
-            transforms = json.load(f)
-        M_cameras = []
-        M_cameras += [torch.tensor(frame["transform_matrix"]) for frame in transforms["frames"]]
-        M_cameras = torch.stack(M_cameras)
-
-        imgs = [
-            torch.from_numpy(imageio.imread(os.path.join(path, "images", f"{i}_rgb.png")))[..., :3]
-            for i in range(len(M_cameras))
-        ]
-        #  (f"{i}_rgb.png").convert("RGB")) for i in range(len(M_cameras))]
-        imgs = torch.stack(imgs).float().permute(0, 3, 1, 2)
-
-        fl_x = transforms["fl_x"]
-        fl_y = transforms["fl_y"]
-        cx = transforms["cx"]
-        cy = transforms["cy"]
-        image_width = transforms["w"]
-        image_height = transforms["h"]
-
-        pif = PIF(
-            focal_length=torch.tensor([fl_x, fl_y]),
-            principal_point=torch.tensor([cx, cy]),
-            image_size=torch.tensor([image_height, image_width]),
-            c2w=M_cameras,
-        )
-    else:
-        pif = None
+    pif = PIF().cuda() if cfg.pif else None
 
     triplane_decoder = triplane_decoder.cuda()
     triplane_encoder = triplane_encoder.cuda()
-    if pif is not None:
-        pif = pif.cuda()
 
     print("done building models")
 
@@ -248,6 +215,8 @@ def main(local_rank, args):
 
                 triplane_decoder.update_planes(triplane)
                 if pif is not None:
+                    meta = img_metas[0]
+                    pif.update_proj_mat(meta["K"], meta["c2w"], meta["img_shape"][0][:2], meta["num_cams"])
                     pif.update_imgs(features[0])
 
                 # train_step
@@ -368,6 +337,8 @@ def main(local_rank, args):
 
                     triplane_decoder.update_planes(triplane)
                     if pif is not None:
+                        meta = img_metas[0]
+                        pif.update_proj_mat(meta["K"], meta["c2w"], meta["img_shape"][0][:2], meta["num_cams"])
                         pif.update_imgs(features[0])
 
                     for img_index in np.arange(0, len(val_dataset) // (H * W)):

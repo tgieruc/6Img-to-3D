@@ -4,37 +4,66 @@
 # ==============================================================================
 
 
+import numpy as np
 import torch
 from torch import device
 from torch.nn import functional as F
 
 
 class PIF(torch.nn.Module):
-    def __init__(self, focal_length, principal_point, image_size, c2w):
+    def __init__(self):
         """
-        focal_length: (2)
-        principal_point: (2)
-        image_size: (2)
-        c2w: (N,4,4)
+        Lazy-initialised Projected Image Features module.
+
+        Call update_proj_mat() with the camera parameters from each batch's
+        img_metas before calling update_imgs() / forward().
         """
         super().__init__()
 
-        self.width = image_size[0]
-        self.height = image_size[1]
-
-        K = torch.zeros((4, 4), device=focal_length.device)  # (C,4,4)
-        K[0, 0] = focal_length[0]
-        K[1, 1] = focal_length[1]
-        K[2, 2] = 1
-        K[0, 2] = principal_point[0]
-        K[1, 2] = principal_point[1]
-        K[3, 3] = 1
-
-        w2c = torch.linalg.inv(c2w)  # (C,4,4)
-
-        self.proj_mat = K[None, :3, :].matmul(w2c[:, :, :]).squeeze(0)  # (C,3,4)
-
+        # width/height follow the legacy convention (width=rows, height=cols).
+        self.width = None
+        self.height = None
+        self.proj_mat = None
         self.imgs = None
+        self._proj_cache_key = None
+
+        # Zero-element buffer whose sole purpose is to track the device so that
+        # proj_mat computed inside update_proj_mat() lands on the right device.
+        self.register_buffer("_device_sentinel", torch.zeros(0))
+
+    def update_proj_mat(self, K, c2w, img_hw, num_cams: int = None) -> None:
+        """
+        Recompute projection matrices from per-camera intrinsics and extrinsics,
+        with caching: if K and c2w are identical to the previous call the
+        matrix inversion is skipped.
+
+        Args:
+            K:        (N_cams, 3, 4) numpy array of per-camera intrinsic matrices.
+            c2w:      list/array of N_cams (4, 4) camera-to-world matrices.
+            img_hw:   (H, W) image dimensions matching the intrinsics.
+            num_cams: actual number of cameras when K/c2w are zero-padded.
+        """
+        K_np = np.asarray(K, dtype=np.float64)
+        c2w_np = np.asarray(c2w, dtype=np.float64)
+        if num_cams is not None:
+            K_np = K_np[:num_cams]
+            c2w_np = c2w_np[:num_cams]
+
+        key = (K_np.tobytes(), c2w_np.tobytes())
+        if key == self._proj_cache_key:
+            return
+        self._proj_cache_key = key
+
+        # Preserve legacy naming: self.width = rows (H), self.height = cols (W).
+        self.width = img_hw[0]
+        self.height = img_hw[1]
+
+        c2w_t = torch.tensor(c2w_np, dtype=torch.float32)  # (C, 4, 4)
+        w2c = torch.linalg.inv(c2w_t)  # (C, 4, 4)
+        K_t = torch.tensor(K_np, dtype=torch.float32)  # (C, 3, 4)
+
+        # proj_mat[i] = K[i] @ w2c[i]  →  (C, 3, 4)
+        self.proj_mat = torch.bmm(K_t, w2c).to(self._device_sentinel.device)
 
     def update_imgs(self, imgs: torch.Tensor) -> None:
         """
@@ -103,7 +132,8 @@ class PIF(torch.nn.Module):
         return features
 
     def cuda(self, device: int | device | None = None) -> "PIF":
-        self.proj_mat = self.proj_mat.cuda(device)
+        if self.proj_mat is not None:
+            self.proj_mat = self.proj_mat.cuda(device)
         if self.imgs is not None:
             self.imgs = self.imgs.cuda(device)
         return super().cuda(device)

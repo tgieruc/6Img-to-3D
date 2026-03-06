@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class PIFConfig(BaseModel):
     enabled: bool = False
     factor: float = 0.125
-    transforms_path: str = ""
 
 
 class EncoderConfig(BaseModel):

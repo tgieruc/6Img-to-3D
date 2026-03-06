@@ -40,7 +40,7 @@ const DEFAULT_CONFIG: FullConfig = {
       factor: 0.25, depth: true,
     },
   },
-  pif: { enabled: false, factor: 0.125, transforms_path: '' },
+  pif: { enabled: false, factor: 0.125 },
 }
 
 // ── Live preview generator ────────────────────────────────────────────────────
@@ -74,7 +74,6 @@ scene_contraction_factor = [${e.scene_contraction_factor.join(', ')}]
 
 pif = ${p.enabled ? 'True' : 'False'}
 pif_factor = ${p.factor}
-pif_transforms = "${p.transforms_path}"
 
 tpv_encoder_layers = ${e.num_encoder_layers}
 # ${nCross} cross-attn layers + ${nSelf} self-attn layers
@@ -375,10 +374,6 @@ function ConfigForm({ cfg, onChange }: { cfg: FullConfig; onChange: (c: FullConf
         </Field>
         <Field label="factor">
           <NumInput value={cfg.pif.factor} onChange={v => set.pif('factor', v)} step={0.001} />
-        </Field>
-        <Field label="transforms_path" wide>
-          <TextInput value={cfg.pif.transforms_path} onChange={v => set.pif('transforms_path', v)}
-            placeholder="/app/data/Town02/.../nuscenes/" />
         </Field>
       </Section>
     </div>

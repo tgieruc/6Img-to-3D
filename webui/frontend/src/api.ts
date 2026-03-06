@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: 'http://localhost:8001' })
+const api = axios.create({ baseURL: '' })
 
 export interface DataOptions {
   towns: string[]
@@ -121,7 +121,7 @@ export async function listRenders(jobId: string): Promise<string[]> {
 }
 
 export function renderUrl(jobId: string, filename: string): string {
-  return `http://localhost:8001/api/jobs/${jobId}/renders/${filename}`
+  return `/api/jobs/${jobId}/renders/${filename}`
 }
 
 // ── Config Builder ──────────────────────────────────────────────────────────
@@ -129,7 +129,6 @@ export function renderUrl(jobId: string, filename: string): string {
 export interface PIFConfig {
   enabled: boolean
   factor: number
-  transforms_path: string
 }
 
 export interface EncoderConfig {
@@ -255,7 +254,7 @@ export async function importConfig(name: string, file: File): Promise<ConfigReco
 }
 
 export function configExportUrl(id: string): string {
-  return `http://localhost:8001/api/configs/${id}/export`
+  return `/api/configs/${id}/export`
 }
 
 export async function writeConfigToDisk(id: string): Promise<{ path: string }> {

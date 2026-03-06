@@ -33,7 +33,6 @@ scene_contraction_factor = [0.5, 0.1, 0.1]
 
 pif = True
 pif_factor = 0.125
-pif_transforms = "/app/data/Town02/ClearNoon/vehicle.tesla.invisible/spawn_point_10/step_0/nuscenes/"
 
 tpv_encoder_layers = 5
 num_points_in_pillar = [4, 32, 32]
