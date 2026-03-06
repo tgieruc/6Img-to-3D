@@ -1,5 +1,5 @@
 <div align="center">
- 
+
 # 6Img-to-3D: Few-Image Large-Scale Outdoor Novel View Synthesis
 [![Paper](https://img.shields.io/badge/arXiv-2404.12378-brightgreen)](https://arxiv.org/abs/2404.12378)
 [![Conference](https://img.shields.io/badge/IEEE_IV-2025-blue)](https://ieee-iv.org/2025/)
@@ -30,26 +30,26 @@ Given six input images, we first encode them into feature maps using a pre-train
 
 
 ## Installation
+
+Requires Python >= 3.10, CUDA 12.6, and [uv](https://docs.astral.sh/uv/).
+
 ```bash
-conda create -n sixtothree python=3.8
-conda activate sixtothree
+# Install all dependencies (PyTorch + CUDA 12.6 wheels resolved automatically)
+uv sync
+
+# Install tiny-cuda-nn (requires CUDA toolkit at build time)
+uv pip install ninja git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 ```
 
-Install PyTorch 2.0.1 with CUDA 11.8 (recommended), cuda-toolkit and tinycudann.
+For development (includes ruff, pre-commit):
 ```bash
-pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 --extra-index-url https://download.pytorch.org/whl/cu118 
-conda install -c "nvidia/label/cuda-11.8.0" cuda-toolkit
-pip install ninja git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
+uv sync --group dev
+uv run pre-commit install
 ```
 
-Install the MMLAB suite
+Docker alternative:
 ```bash
-pip install mmdet==2.20.0 mmengine==0.8.4 mmsegmentation==0.20.0  mmcls==0.25.0 mmcv-full==1.5.0 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.1/index.html
-```
-
-Install the other dependencies
-```bash
-pip install tensorboardX crc32c pandas pyyaml==6.0.1  imageio==2.33.1 imageio-ffmpeg==0.4.9 lpips==0.1.4 pytorch-msssim==1.0.0 kornia==0.7.0 yapf==0.40.1 jupyter notebook seaborn==0.13.2
+docker build -t 6img-to-3d .
 ```
 
 ## Train
@@ -84,7 +84,7 @@ To train the model, run the training script with the desired arguments specified
 To run the train9ing script, execute the Python file `train.py` with the desired arguments specified using the command line interface. For example:
 
 ```bash
-python train.py --py-config config/config.py --ckpt-path ckpts/tpvformer.pth --log-dir evaluation_results 
+python train.py --py-config config/config.py --ckpt-path ckpts/tpvformer.pth --log-dir evaluation_results
 ```
 
 
@@ -109,7 +109,7 @@ The evaluation script can be run with different options to customize the evaluat
 
 - `--gif-gt`: If specified, GIFs are generated for ground truth images.
 
-- `--img-gt`: If specified, the script saves ground truth images alongside the generated images. 
+- `--img-gt`: If specified, the script saves ground truth images alongside the generated images.
 
 - `--num-img`: Specifies the number of images to evaluate. By default, all images in the dataset are evaluated. This argument allows for faster evaluation when only a subset of images is required.
 
@@ -135,8 +135,8 @@ If you find this code useful, please reference in your paper:
 ```
 @INPROCEEDINGS{11097387,
   author={Gieruc, Théo and Kästingschäfers, Marius and Bernhard, Sebastian and Salzmann, Mathieu},
-  booktitle={2025 IEEE Intelligent Vehicles Symposium (IV)}, 
-  title={6Img-to-3D: Few-Image Large-Scale Outdoor Novel View Synthesis}, 
+  booktitle={2025 IEEE Intelligent Vehicles Symposium (IV)},
+  title={6Img-to-3D: Few-Image Large-Scale Outdoor Novel View Synthesis},
   year={2025},
   volume={},
   number={},

@@ -18,8 +18,8 @@ limitations under the License.
 """
 
 from abc import abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Optional, Callable, Tuple, List
 
 import torch
 from torch import nn
@@ -28,6 +28,7 @@ from torch import nn
 @dataclass
 class RaySamples:
     """xyz coordinate for ray origin."""
+
     origins: torch.Tensor  # [bs:..., 3]
     """Direction of ray."""
     directions: torch.Tensor  # [bs:..., 3]
@@ -36,13 +37,13 @@ class RaySamples:
     """Where the frustum ends along a ray."""
     ends: torch.Tensor  # [bs:..., 1]
     """"width" of each sample."""
-    deltas: Optional[torch.Tensor] = None  # [bs, ...?, 1]
+    deltas: torch.Tensor | None = None  # [bs, ...?, 1]
     """Start of normalized bin edges along ray [0,1], before warping is applied, ie. linear in disparity sampling."""
-    spacing_starts: Optional[torch.Tensor] = None  # [bs, ...?, num_samples, 1]
+    spacing_starts: torch.Tensor | None = None  # [bs, ...?, num_samples, 1]
     """End of normalized bin edges along ray [0,1], before warping is applied, ie. linear in disparity sampling."""
-    spacing_ends: Optional[torch.Tensor] = None  # [bs, ...?, num_samples, 1]
+    spacing_ends: torch.Tensor | None = None  # [bs, ...?, num_samples, 1]
     """Function to convert bins to euclidean distance."""
-    spacing_to_euclidean_fn: Optional[Callable] = None
+    spacing_to_euclidean_fn: Callable | None = None
 
     def get_positions(self) -> torch.Tensor:
         """Calulates "center" position of frustum. Not weighted by mass.
@@ -62,10 +63,7 @@ class RaySamples:
         alphas = 1 - torch.exp(-delta_density)
 
         transmittance = torch.cat(
-            (
-                torch.ones(alphas.shape[0], 1, device=alphas.device),
-                torch.cumprod(1.0 - alphas, dim=-1)
-            ), dim=-1
+            (torch.ones(alphas.shape[0], 1, device=alphas.device), torch.cumprod(1.0 - alphas, dim=-1)), dim=-1
         )
         weights = alphas * transmittance[:, :-1]
         return weights[..., None]
@@ -81,7 +79,7 @@ class RaySamples:
         deltas = self.deltas[delta_mask]
 
         delta_density = torch.zeros_like(densities, device=densities.device, dtype=densities.dtype)
-        delta_density[delta_mask] = torch.tensor(deltas * densities[delta_mask], dtype=densities.dtype, device=densities.device)
+        delta_density[delta_mask] = (deltas * densities[delta_mask]).to(dtype=densities.dtype)
         alphas = 1 - torch.exp(-delta_density)
 
         transmittance = torch.cumsum(delta_density[..., :-1, :], dim=-2)
@@ -102,9 +100,9 @@ class RayBundle:
     """Unit ray direction vector"""
     directions: torch.Tensor  # [..., 3]
     """Distance along ray to start sampling"""
-    nears: Optional[torch.Tensor] = None  # [..., 1]
+    nears: torch.Tensor | None = None  # [..., 1]
     """Rays Distance along ray to stop sampling"""
-    fars: Optional[torch.Tensor] = None  # [..., 1]
+    fars: torch.Tensor | None = None  # [..., 1]
 
     def __len__(self):
         num_rays = torch.numel(self.origins) // self.origins.shape[-1]
@@ -114,9 +112,9 @@ class RayBundle:
         self,
         bin_starts: torch.Tensor,
         bin_ends: torch.Tensor,
-        spacing_starts: Optional[torch.Tensor] = None,
-        spacing_ends: Optional[torch.Tensor] = None,
-        spacing_to_euclidean_fn: Optional[Callable] = None,
+        spacing_starts: torch.Tensor | None = None,
+        spacing_ends: torch.Tensor | None = None,
+        spacing_to_euclidean_fn: Callable | None = None,
     ) -> RaySamples:
         """Produces samples for each ray by projection points along the ray direction. Currently samples uniformly.
         Args:
@@ -147,7 +145,7 @@ class Sampler(nn.Module):
 
     def __init__(
         self,
-        num_samples: Optional[int] = None,
+        num_samples: int | None = None,
     ) -> None:
         super().__init__()
         self.num_samples = num_samples
@@ -175,7 +173,7 @@ class SpacedSampler(Sampler):
         self,
         spacing_fn: Callable,
         spacing_fn_inv: Callable,
-        num_samples: Optional[int] = None,
+        num_samples: int | None = None,
         train_stratified=True,
         single_jitter=False,
     ) -> None:
@@ -189,7 +187,7 @@ class SpacedSampler(Sampler):
     def generate_ray_samples(
         self,
         ray_bundle: RayBundle,
-        num_samples: Optional[int] = None,
+        num_samples: int | None = None,
     ) -> RaySamples:
         """Generates position samples accoring to spacing function.
         Args:
@@ -225,9 +223,9 @@ class SpacedSampler(Sampler):
 
         return ray_bundle.get_ray_samples(
             bin_starts=euclidean_bins[..., :-1, None],  # world [near, far]
-            bin_ends=euclidean_bins[..., 1:, None],     # world [near, far]
-            spacing_starts=bins[..., :-1, None],        # [0, 1]
-            spacing_ends=bins[..., 1:, None],           # [0, 1]
+            bin_ends=euclidean_bins[..., 1:, None],  # world [near, far]
+            spacing_starts=bins[..., :-1, None],  # [0, 1]
+            spacing_ends=bins[..., 1:, None],  # [0, 1]
             spacing_to_euclidean_fn=spacing_to_euclidean_fn,
         )
 
@@ -242,7 +240,7 @@ class UniformSampler(SpacedSampler):
 
     def __init__(
         self,
-        num_samples: Optional[int] = None,
+        num_samples: int | None = None,
         train_stratified=True,
         single_jitter=False,
     ) -> None:
@@ -265,7 +263,7 @@ class LinearDisparitySampler(SpacedSampler):
 
     def __init__(
         self,
-        num_samples: Optional[int] = None,
+        num_samples: int | None = None,
         train_stratified=True,
         single_jitter=False,
     ) -> None:
@@ -289,7 +287,7 @@ class UniformLinDispPiecewiseSampler(SpacedSampler):
 
     def __init__(
         self,
-        num_samples: Optional[int] = None,
+        num_samples: int | None = None,
         train_stratified=True,
         single_jitter=False,
     ) -> None:
@@ -314,7 +312,7 @@ class PDFSampler(Sampler):
 
     def __init__(
         self,
-        num_samples: Optional[int] = None,
+        num_samples: int | None = None,
         train_stratified: bool = True,
         single_jitter: bool = False,
         include_original: bool = True,
@@ -330,9 +328,9 @@ class PDFSampler(Sampler):
     def generate_ray_samples(
         self,
         ray_bundle: RayBundle,
-        ray_samples: Optional[RaySamples] = None,
-        weights: Optional[torch.Tensor] = None,
-        num_samples: Optional[int] = None,
+        ray_samples: RaySamples | None = None,
+        weights: torch.Tensor | None = None,
+        num_samples: int | None = None,
         eps: float = 1e-5,
     ) -> RaySamples:
         """Generates position samples given a distribution.
@@ -380,9 +378,9 @@ class PDFSampler(Sampler):
             u = u.expand(size=(*cdf.shape[:-1], num_bins))
         u = u.contiguous()
 
-        assert (
-            ray_samples.spacing_starts is not None and ray_samples.spacing_ends is not None
-        ), "ray_sample spacing_starts and spacing_ends must be provided"
+        assert ray_samples.spacing_starts is not None and ray_samples.spacing_ends is not None, (
+            "ray_sample spacing_starts and spacing_ends must be provided"
+        )
         assert ray_samples.spacing_to_euclidean_fn is not None, "ray_samples.spacing_to_euclidean_fn must be provided"
         existing_bins = torch.cat(
             [
@@ -423,14 +421,15 @@ class PDFSampler(Sampler):
 
 class ProposalNetworkSampler(Sampler):
     """Sampler that uses a proposal network to generate samples."""
+
     def __init__(
         self,
-        num_proposal_samples_per_ray: Tuple[int] = (64,),
+        num_proposal_samples_per_ray: tuple[int] = (64,),
         num_nerf_samples_per_ray: int = 32,
         num_proposal_network_iterations: int = 2,
         single_jitter: bool = False,
         update_sched: Callable = lambda x: 1,
-        initial_sampler: Optional[Sampler] = None,
+        initial_sampler: Sampler | None = None,
     ) -> None:
         super().__init__()
         self.num_proposal_samples_per_ray = num_proposal_samples_per_ray
@@ -461,10 +460,10 @@ class ProposalNetworkSampler(Sampler):
 
     def generate_ray_samples(
         self,
-        ray_bundle: Optional[RayBundle] = None,
-        timestamps: Optional[float] = None,
-        density_fns: Optional[List[Callable]] = None,
-    ) -> Tuple[RaySamples, List, List]:
+        ray_bundle: RayBundle | None = None,
+        timestamps: float | None = None,
+        density_fns: list[Callable] | None = None,
+    ) -> tuple[RaySamples, list, list]:
         assert ray_bundle is not None
         assert density_fns is not None
         assert len(density_fns) == self.num_proposal_network_iterations
@@ -505,7 +504,9 @@ class ProposalNetworkSampler(Sampler):
         return ray_samples, weights_list, ray_samples_list
 
     def __str__(self):
-        return (f"ProposalNetworkSampler("
-                f"num_proposal_samples_per_ray={self.num_proposal_samples_per_ray}, "
-                f"num_nerf_samples_per_ray={self.num_nerf_samples_per_ray}, "
-                f"num_proposal_network_iterations={self.num_proposal_network_iterations})")
+        return (
+            f"ProposalNetworkSampler("
+            f"num_proposal_samples_per_ray={self.num_proposal_samples_per_ray}, "
+            f"num_nerf_samples_per_ray={self.num_nerf_samples_per_ray}, "
+            f"num_proposal_network_iterations={self.num_proposal_network_iterations})"
+        )

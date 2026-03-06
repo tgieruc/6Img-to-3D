@@ -3,10 +3,12 @@
 # @author: Théo Gieruc and Marius Kästingschäfer
 # ==============================================================================
 
+from mmseg.registry import MODELS as SEG_MODELS
+
 from triplane_encoder import *
-from mmseg.models import build_segmentor
+
 
 def build(model_config):
-    model = build_segmentor(model_config)
+    model = SEG_MODELS.build(model_config)
     model.init_weights()
     return model

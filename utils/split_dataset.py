@@ -3,28 +3,35 @@
 # @author: Théo Gieruc and Marius Kästingschäfer
 # ==============================================================================
 
-import sys, os
-import numpy as np
 import argparse
 import json
+import os
+
+import numpy as np
 from tqdm import tqdm
+
 
 def get_transform_files(data_dir):
     transform_files = []
     for root, dirs, files in os.walk(data_dir):
-        transform_files += [os.path.join(root, file) for file in files if file.endswith('transforms.json') or file.endswith('transforms_ego.json')]
+        transform_files += [
+            os.path.join(root, file)
+            for file in files
+            if file.endswith("transforms.json") or file.endswith("transforms_ego.json")
+        ]
     return transform_files
+
 
 def split_dataset(data_dir, split_ratio):
     transform_files = get_transform_files(data_dir)
-    
+
     num_files = len(transform_files)
     pbar = tqdm(transform_files, total=num_files)
 
     for file in pbar:
-        with open(file, 'r') as f:
+        with open(file) as f:
             transforms = json.load(f)
-        
+
         train = transforms.copy()
         test = transforms.copy()
         frames = transforms["frames"]
@@ -38,21 +45,21 @@ def split_dataset(data_dir, split_ratio):
         train["frames"] = frames[:num_train_frames]
         test["frames"] = frames[num_train_frames:]
 
-        train_file = file.replace('.json', '_train.json')
-        test_file = file.replace('.json', '_test.json')
+        train_file = file.replace(".json", "_train.json")
+        test_file = file.replace(".json", "_test.json")
 
-        with open(train_file, 'w') as f:
+        with open(train_file, "w") as f:
             json.dump(train, f, indent=4)
 
-        with open(test_file, 'w') as f:
+        with open(test_file, "w") as f:
             json.dump(test, f, indent=4)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default='data')
-    parser.add_argument('--split_ratio', type=float, default=0.8)
-    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument("--data_dir", type=str, default="data")
+    parser.add_argument("--split_ratio", type=float, default=0.8)
+    parser.add_argument("--seed", type=int, default=0)
 
     args = parser.parse_args()
 

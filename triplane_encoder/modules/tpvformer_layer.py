@@ -7,17 +7,15 @@ Please find the Apache 2 license conditions here:
 https://github.com/wzzheng/TPVFormer/blob/a1cf223ae4b79f56a2b046016c35a8fb3a0b6284/LICENSE
 """
 
-
-
 import copy
 import warnings
 
 import torch
-from mmcv import ConfigDict
 from mmcv.cnn import build_norm_layer
-from mmcv.runner.base_module import BaseModule, ModuleList
-from mmcv.cnn.bricks.registry import TRANSFORMER_LAYER
-from mmcv.cnn.bricks.transformer import build_feedforward_network, build_attention
+from mmcv.cnn.bricks.transformer import build_attention, build_feedforward_network
+from mmengine.config import ConfigDict
+from mmengine.model import BaseModule, ModuleList
+from mmengine.registry import MODELS as TRANSFORMER_LAYER
 
 
 @TRANSFORMER_LAYER.register_module(force=True)
@@ -55,61 +53,64 @@ class TPVFormerLayer(BaseModule):
             or (n, batch, embed_dim). Default to False.
     """
 
-    def __init__(self,
-                 attn_cfgs=None,
-                 ffn_cfgs=dict(
-                     type='FFN',
-                     feedforward_channels=1024,
-                     num_fcs=2,
-                     ffn_drop=0.,
-                     act_cfg=dict(type='ReLU', inplace=True),
-                 ),
-                 operation_order=None,
-                 norm_cfg=dict(type='LN'),
-                 init_cfg=None,
-                 batch_first=True,
-                 **kwargs):
+    def __init__(
+        self,
+        attn_cfgs=None,
+        ffn_cfgs=dict(
+            type="FFN",
+            feedforward_channels=1024,
+            num_fcs=2,
+            ffn_drop=0.0,
+            act_cfg=dict(type="ReLU", inplace=True),
+        ),
+        operation_order=None,
+        norm_cfg=dict(type="LN"),
+        init_cfg=None,
+        batch_first=True,
+        **kwargs,
+    ):
         # import pdb; pdb.set_trace()
         deprecated_args = dict(
-            feedforward_channels='feedforward_channels',
-            ffn_dropout='ffn_drop',
-            ffn_num_fcs='num_fcs')
+            feedforward_channels="feedforward_channels", ffn_dropout="ffn_drop", ffn_num_fcs="num_fcs"
+        )
         for ori_name, new_name in deprecated_args.items():
             if ori_name in kwargs:
                 warnings.warn(
-                    f'The arguments `{ori_name}` in BaseTransformerLayer '
-                    f'has been deprecated, now you should set `{new_name}` '
-                    f'and other FFN related arguments '
-                    f'to a dict named `ffn_cfgs`. ')
+                    f"The arguments `{ori_name}` in BaseTransformerLayer "
+                    f"has been deprecated, now you should set `{new_name}` "
+                    f"and other FFN related arguments "
+                    f"to a dict named `ffn_cfgs`. "
+                )
                 ffn_cfgs[new_name] = kwargs[ori_name]
 
         super().__init__(init_cfg)
 
         self.batch_first = batch_first
 
-        num_attn = operation_order.count('self_attn') + operation_order.count(
-            'cross_attn')
+        num_attn = operation_order.count("self_attn") + operation_order.count("cross_attn")
         if isinstance(attn_cfgs, dict):
             attn_cfgs = [copy.deepcopy(attn_cfgs) for _ in range(num_attn)]
         else:
-            assert num_attn == len(attn_cfgs), f'The length ' \
-                f'of attn_cfg {num_attn} is ' \
-                f'not consistent with the number of attention' \
-                f'in operation_order {operation_order}.'
+            assert num_attn == len(attn_cfgs), (
+                f"The length "
+                f"of attn_cfg {num_attn} is "
+                f"not consistent with the number of attention"
+                f"in operation_order {operation_order}."
+            )
 
         self.num_attn = num_attn
         self.operation_order = operation_order
         self.norm_cfg = norm_cfg
-        self.pre_norm = operation_order[0] == 'norm'
+        self.pre_norm = operation_order[0] == "norm"
         self.attentions = ModuleList()
 
         index = 0
         for operation_name in operation_order:
-            if operation_name in ['self_attn', 'cross_attn']:
-                if 'batch_first' in attn_cfgs[index]:
-                    assert self.batch_first == attn_cfgs[index]['batch_first']
+            if operation_name in ["self_attn", "cross_attn"]:
+                if "batch_first" in attn_cfgs[index]:
+                    assert self.batch_first == attn_cfgs[index]["batch_first"]
                 else:
-                    attn_cfgs[index]['batch_first'] = self.batch_first
+                    attn_cfgs[index]["batch_first"] = self.batch_first
                 attention = build_attention(attn_cfgs[index])
                 # Some custom attentions used as `self_attn`
                 # or `cross_attn` can have different behavior.
@@ -120,39 +121,41 @@ class TPVFormerLayer(BaseModule):
         self.embed_dims = self.attentions[0].embed_dims
 
         self.ffns = ModuleList()
-        num_ffns = operation_order.count('ffn')
+        num_ffns = operation_order.count("ffn")
         if isinstance(ffn_cfgs, dict):
             ffn_cfgs = ConfigDict(ffn_cfgs)
         if isinstance(ffn_cfgs, dict):
             ffn_cfgs = [copy.deepcopy(ffn_cfgs) for _ in range(num_ffns)]
         assert len(ffn_cfgs) == num_ffns
         for ffn_index in range(num_ffns):
-            if 'embed_dims' not in ffn_cfgs[ffn_index]:
-                ffn_cfgs[ffn_index]['embed_dims'] = self.embed_dims
+            if "embed_dims" not in ffn_cfgs[ffn_index]:
+                ffn_cfgs[ffn_index]["embed_dims"] = self.embed_dims
             else:
-                assert ffn_cfgs[ffn_index]['embed_dims'] == self.embed_dims
+                assert ffn_cfgs[ffn_index]["embed_dims"] == self.embed_dims
 
             self.ffns.append(build_feedforward_network(ffn_cfgs[ffn_index]))
 
         self.norms = ModuleList()
-        num_norms = operation_order.count('norm')
+        num_norms = operation_order.count("norm")
         for _ in range(num_norms):
             self.norms.append(build_norm_layer(norm_cfg, self.embed_dims)[1])
 
-    def forward(self,
-                query,
-                key=None,
-                value=None,
-                tpv_pos=None,
-                ref_2d=None,
-                tpv_h=None,
-                tpv_w=None,
-                tpv_z=None,
-                spatial_shapes=None,
-                level_start_index=None,
-                reference_points_cams=None,
-                tpv_masks=None,
-                **kwargs):
+    def forward(
+        self,
+        query,
+        key=None,
+        value=None,
+        tpv_pos=None,
+        ref_2d=None,
+        tpv_h=None,
+        tpv_w=None,
+        tpv_z=None,
+        spatial_shapes=None,
+        level_start_index=None,
+        reference_points_cams=None,
+        tpv_masks=None,
+        **kwargs,
+    ):
         """
         **kwargs contains some specific arguments of attentions.
 
@@ -178,19 +181,12 @@ class TPVFormerLayer(BaseModule):
 
         for layer in self.operation_order:
             # cross view hybrid attention
-            if layer == 'self_attn':
-                if not isinstance(query, (list, tuple)):
-                    query = torch.split(
-                        query, [tpv_h*tpv_w, tpv_z*tpv_h, tpv_w*tpv_z], dim=1)
-                    
-                ss = torch.tensor([
-                    [tpv_h, tpv_w],
-                    [tpv_z, tpv_h],
-                    [tpv_w, tpv_z]
-                ], device=query[0].device)
-                lsi = torch.tensor([
-                    0, tpv_h*tpv_w, tpv_h*tpv_w+tpv_z*tpv_h
-                ], device=query[0].device)
+            if layer == "self_attn":
+                if not isinstance(query, list | tuple):
+                    query = torch.split(query, [tpv_h * tpv_w, tpv_z * tpv_h, tpv_w * tpv_z], dim=1)
+
+                ss = torch.tensor([[tpv_h, tpv_w], [tpv_z, tpv_h], [tpv_w, tpv_z]], device=query[0].device)
+                lsi = torch.tensor([0, tpv_h * tpv_w, tpv_h * tpv_w + tpv_z * tpv_h], device=query[0].device)
 
                 query = self.attentions[attn_index](
                     query,
@@ -199,20 +195,20 @@ class TPVFormerLayer(BaseModule):
                     reference_points=ref_2d,
                     spatial_shapes=ss,
                     level_start_index=lsi,
-                    **kwargs)
+                    **kwargs,
+                )
                 attn_index += 1
                 query = torch.cat(query, dim=1)
                 identity = query
 
-            elif layer == 'norm':
+            elif layer == "norm":
                 query = self.norms[norm_index](query)
                 norm_index += 1
 
             # image cross attention
-            elif layer == 'cross_attn':
-                if  isinstance(query, (list, tuple)):
-                    query = torch.cat(
-                        query, dim=1)
+            elif layer == "cross_attn":
+                if isinstance(query, list | tuple):
+                    query = torch.cat(query, dim=1)
                 query = self.attentions[attn_index](
                     query,
                     key,
@@ -222,17 +218,17 @@ class TPVFormerLayer(BaseModule):
                     level_start_index=level_start_index,
                     reference_points_cams=reference_points_cams,
                     tpv_masks=tpv_masks,
-                    **kwargs)
+                    **kwargs,
+                )
                 attn_index += 1
                 identity = query
 
-            elif layer == 'ffn':
-                if  isinstance(query, (list, tuple)):
-                    query = torch.cat(
-                        query, dim=1)
+            elif layer == "ffn":
+                if isinstance(query, list | tuple):
+                    query = torch.cat(query, dim=1)
                 ffn = self.ffns[ffn_index]
                 query = ffn(query, identity if self.pre_norm else None)
                 ffn_index += 1
 
-        query = torch.split(query, [tpv_h*tpv_w, tpv_z*tpv_h, tpv_w*tpv_z], dim=1)
+        query = torch.split(query, [tpv_h * tpv_w, tpv_z * tpv_h, tpv_w * tpv_z], dim=1)
         return query
