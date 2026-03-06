@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SplitManager from './pages/SplitManager'
 import Training from './pages/Training'
 import Evaluation from './pages/Evaluation'
+import ConfigBuilder from './pages/ConfigBuilder'
 
 const queryClient = new QueryClient()
 
@@ -15,6 +16,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           { to: '/splits', label: 'Split Manager' },
           { to: '/training', label: 'Training' },
           { to: '/eval', label: 'Evaluation' },
+          { to: '/configs', label: 'Config Builder' },
         ].map(({ to, label }) => (
           <NavLink key={to} to={to} className={({ isActive }) =>
             isActive ? 'text-blue-400' : 'text-gray-400 hover:text-gray-200'
@@ -36,6 +38,7 @@ export default function App() {
             <Route path="/splits" element={<SplitManager />} />
             <Route path="/training" element={<Training />} />
             <Route path="/eval" element={<Evaluation />} />
+            <Route path="/configs" element={<ConfigBuilder />} />
           </Routes>
         </Layout>
       </BrowserRouter>
