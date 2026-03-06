@@ -13,7 +13,12 @@ Requires Python >= 3.10, CUDA 12.6, PyTorch 2.6+. Uses [uv](https://docs.astral.
 ```bash
 uv sync
 uv pip install ninja git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
+# mmcv must be built from source (nvcc required, mmseg needs mmcv<2.2.0):
+CC=/usr/bin/gcc CXX=/usr/bin/g++ PATH=/usr/local/cuda/bin:$PATH TORCH_CUDA_ARCH_LIST="8.9" \
+  uv pip install "mmcv>=2.0.0rc4,<2.2.0" --no-build-isolation
 ```
+
+> **TORCH_CUDA_ARCH_LIST** — set to match your GPU: `7.5` (T4/RTX 2080), `8.0` (A100), `8.6` (RTX 3090), `8.9` (RTX 4070 Ti / 4090), `9.0` (H100).
 
 For development: `uv sync --group dev && uv run pre-commit install`
 

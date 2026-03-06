@@ -11,10 +11,9 @@ import math
 
 import torch
 import torch.nn as nn
-from mmcv.cnn import constant_init, xavier_init
 from mmcv.ops.multi_scale_deform_attn import multi_scale_deformable_attn_pytorch
 from mmcv.utils import ext_loader
-from mmengine.model import BaseModule
+from mmengine.model import BaseModule, constant_init, xavier_init
 from mmengine.registry import MODELS as ATTENTION
 
 from .multi_scale_deformable_attn_function import MultiScaleDeformableAttnFunction_fp32
