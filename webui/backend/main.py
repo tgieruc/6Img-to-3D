@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from webui.backend.api.configs import router as configs_router
 from webui.backend.api.data import router as data_router
 from webui.backend.api.jobs import router as jobs_router
 from webui.backend.api.recipes import router as recipes_router
@@ -38,6 +39,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(configs_router)
 app.include_router(data_router)
 app.include_router(jobs_router)
 app.include_router(recipes_router)

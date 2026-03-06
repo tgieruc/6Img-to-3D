@@ -29,6 +29,7 @@ dependencies = [
     "tqdm",
     "torchmetrics",
     "fastapi>=0.135.1",
+    "python-multipart>=0.0.20",
     "uvicorn[standard]>=0.41.0",
     "sqlalchemy>=2.0.48",
     "httpx>=0.28.1",
