@@ -104,3 +104,22 @@ export async function createTrainJob(payload: {
 export async function cancelJob(id: string): Promise<void> {
   await api.delete(`/api/jobs/${id}`)
 }
+
+export async function createEvalJob(payload: {
+  name: string
+  resume_from: string
+  manifest_val: string
+  py_config: string
+}): Promise<{ id: string; status: string }> {
+  const res = await api.post('/api/jobs/eval', payload)
+  return res.data
+}
+
+export async function listRenders(jobId: string): Promise<string[]> {
+  const res = await api.get(`/api/jobs/${jobId}/renders`)
+  return res.data
+}
+
+export function renderUrl(jobId: string, filename: string): string {
+  return `http://localhost:8001/api/jobs/${jobId}/renders/${filename}`
+}
