@@ -95,6 +95,12 @@ class ManifestDataset(data.Dataset):
         #   target_dir      = ".../sphere/"
         target_tf_path = Path(entry["target"])
         target_dir = target_tf_path.parent.parent  # .../sphere/
+        if not target_dir.is_dir():
+            raise ValueError(
+                f"ManifestDataset: target sensor directory not found: {target_dir!r}. "
+                f"Expected entry['target'] = '<sensor>/transforms/transforms_ego.json', "
+                f"got {entry['target']!r}"
+            )
 
         # Lazy import avoids module-level stub binding when tests mock rays_dataset.
         from dataloader.rays_dataset import RaysDataset
@@ -108,21 +114,25 @@ class ManifestDataset(data.Dataset):
             factor=getattr(self.dataset_config, "factor", 1.0),
         )
 
+        _nw = getattr(self.dataset_config, "num_workers", 0)
+        num_workers = _nw if isinstance(_nw, int) else 0
+        _pm = getattr(self.dataset_config, "pin_memory", False)
+        pin_memory = _pm if isinstance(_pm, bool) else False
         batch_size = getattr(self.dataset_config, "batch_size", 1)
         if self.dataset_config.phase == "train":
             sphere_dataloader = DataLoader(
                 sphere_dataset,
                 batch_size=batch_size,
                 shuffle=True,
-                num_workers=0,
-                pin_memory=False,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
             )
         else:
             sphere_dataloader = DataLoader(
                 sphere_dataset,
                 batch_size=batch_size,
                 shuffle=False,
-                num_workers=0,
+                num_workers=num_workers,
             )
 
         return np.stack(imgs), img_meta, sphere_dataloader
