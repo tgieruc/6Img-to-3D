@@ -79,6 +79,14 @@ async def _run_subprocess(job_id: str, cmd: list[str], env: dict | None = None) 
             for line in new_lines.splitlines():
                 if line:
                     await _broadcast(job_id, {"type": "log", "line": line})
+                    if line.startswith("MLFLOW_RUN_ID="):
+                        run_id = line.split("=", 1)[1].strip()
+                        _db = SessionLocal()
+                        _job = _db.get(JobRecord, job_id)
+                        if _job:
+                            _job.mlflow_run_id = run_id
+                            _db.commit()
+                        _db.close()
         await asyncio.sleep(1)
 
     # Final log flush

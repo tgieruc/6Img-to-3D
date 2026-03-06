@@ -39,6 +39,7 @@ def main(local_rank, args):
     experiment_name = args.log_dir or "6img-to-3d"
     mlflow.set_experiment(experiment_name)
     active_run = mlflow.start_run(run_name=args.log_dir or None)
+    print(f"MLFLOW_RUN_ID={active_run.info.run_id}", flush=True)
     logdir = (
         f"runs/{time.strftime('%b%d_%H-%M-%S', time.localtime())}_{args.log_dir}"
         if args.log_dir
