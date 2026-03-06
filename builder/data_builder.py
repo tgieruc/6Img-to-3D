@@ -44,3 +44,34 @@ def build(config):
     )
 
     return train_dataset_loader, val_dataset_loader
+
+
+def build_from_manifests(
+    train_manifest: str,
+    val_manifest: str,
+    config,
+    train_dataset_config,
+    val_dataset_config,
+):
+    """Build train/val DataLoaders from JSONL manifest files."""
+    from dataloader.manifest_dataset import ManifestDataset
+
+    train_dataset = ManifestDataset(train_manifest, config=config, dataset_config=train_dataset_config)
+    val_dataset = ManifestDataset(val_manifest, config=config, dataset_config=val_dataset_config)
+
+    train_loader = torch.utils.data.DataLoader(
+        dataset=train_dataset,
+        batch_size=1,
+        collate_fn=custom_collate_fn,
+        shuffle=True,
+        num_workers=0,
+        pin_memory=False,
+    )
+    val_loader = torch.utils.data.DataLoader(
+        dataset=val_dataset,
+        batch_size=1,
+        collate_fn=custom_collate_fn,
+        shuffle=False,
+        num_workers=0,
+    )
+    return train_loader, val_loader

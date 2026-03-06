@@ -134,7 +134,32 @@ def main(local_rank, args):
 
         print(triplane_encoder.load_state_dict(triplane_generator_ckpt, strict=False))
 
-    train_dataset_loader, val_dataset_loader = data_builder.build(cfg)
+    if args.manifest_train and args.manifest_val:
+        from types import SimpleNamespace
+
+        train_dl_cfg = SimpleNamespace(
+            depth=cfg.dataset_params.train_data_loader.get("depth", False),
+            phase="train",
+            batch_size=cfg.dataset_params.train_data_loader.get("batch_size", 1),
+            factor=cfg.dataset_params.train_data_loader.get("factor", 1.0),
+            num_workers=0,
+        )
+        val_dl_cfg = SimpleNamespace(
+            depth=cfg.dataset_params.val_data_loader.get("depth", False),
+            phase="val",
+            batch_size=cfg.dataset_params.val_data_loader.get("batch_size", 1),
+            factor=cfg.dataset_params.val_data_loader.get("factor", 0.25),
+            num_workers=0,
+        )
+        train_dataset_loader, val_dataset_loader = data_builder.build_from_manifests(
+            train_manifest=args.manifest_train,
+            val_manifest=args.manifest_val,
+            config=cfg,
+            train_dataset_config=train_dl_cfg,
+            val_dataset_config=val_dl_cfg,
+        )
+    else:
+        train_dataset_loader, val_dataset_loader = data_builder.build(cfg)
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -451,6 +476,8 @@ if __name__ == "__main__":
     parser.add_argument("--log-dir", type=str, default="")
     parser.add_argument("--num-scenes", type=int, default=-1)
     parser.add_argument("--from-epoch", type=int, default="-1")
+    parser.add_argument("--manifest-train", type=str, default="", help="Path to train.jsonl manifest")
+    parser.add_argument("--manifest-val", type=str, default="", help="Path to val.jsonl manifest")
     args = parser.parse_args()
 
     ngpus = torch.cuda.device_count()
